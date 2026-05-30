@@ -1,22 +1,28 @@
-# Sensitive credentials — never commit these
-*.json
-*.pkl
-*.db
-*.db-shm
-*.db-wal
-
-# Logs
-*.txt
-*.log
+# Sensitive credentials
+.env
+.env.local
+.env.*.local
+scraper/.env
+apps/dialer/.env
+apps/dialer/.env.local
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
-.env
+.venv/
+venv/
+
+# Scraper cache (place IDs, search cache)
+.web-dialer/
+
+# Node / Next.js
+node_modules/
+apps/dialer/.next/
+apps/dialer/out/
+
+# Logs
+*.log
 
 # macOS
 .DS_Store
-
-# Allow the config template (no real keys)
-!config_template.json
