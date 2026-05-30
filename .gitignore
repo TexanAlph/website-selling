@@ -1,0 +1,22 @@
+# Sensitive credentials — never commit these
+*.json
+*.pkl
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.txt
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# macOS
+.DS_Store
+
+# Allow the config template (no real keys)
+!config_template.json
