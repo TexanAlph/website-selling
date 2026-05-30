@@ -58,13 +58,13 @@ export function CoachPanel({ sessionId, leadId, active }: Props) {
   const counters = messages.filter((m) => m.role === "counter");
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col rounded-2xl bg-[var(--card)] p-4">
+    <section className="glass flex min-h-0 flex-1 flex-col rounded-[var(--radius-xl)] p-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
-          AI Coach
+        <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+          AI coach
         </h2>
         {stack && (
-          <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">
+          <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[10px] font-medium text-[var(--text-tertiary)]">
             {stack.labels.stt}
           </span>
         )}
@@ -74,7 +74,7 @@ export function CoachPanel({ sessionId, leadId, active }: Props) {
         className="mt-3 flex-1 space-y-3 overflow-y-auto text-sm leading-relaxed"
       >
         {counters.length === 0 ? (
-          <p className="text-[var(--muted)]">
+          <p className="text-[var(--text-secondary)]">
             {active
               ? "Listening… counter-objections appear here in real time."
               : "Start a call to activate the coach."}
@@ -83,7 +83,7 @@ export function CoachPanel({ sessionId, leadId, active }: Props) {
           counters.map((m) => (
             <article
               key={m.id}
-              className="rounded-xl border border-emerald-900/50 bg-emerald-950/40 p-3"
+              className="rounded-[var(--radius-lg)] border border-emerald-500/20 bg-emerald-950/30 p-3.5 text-[var(--text)]"
             >
               {m.content}
             </article>

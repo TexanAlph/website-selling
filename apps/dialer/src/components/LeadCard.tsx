@@ -1,27 +1,41 @@
-import type { Lead } from "@/lib/leads";
+import type { Lead, LeadStatus } from "@/lib/leads";
 
 type Props = {
   lead: Lead | null;
   loading?: boolean;
+  calling?: boolean;
+  variant?: "compact" | "strip";
 };
 
-export function LeadCard({ lead, loading }: Props) {
+const STATUS_STYLE: Partial<Record<LeadStatus, string>> = {
+  New: "border-zinc-500/30 bg-zinc-800/50 text-zinc-300",
+  Calling: "border-emerald-500/35 bg-emerald-950/50 text-emerald-300",
+  "Wrong Number": "border-red-500/30 bg-red-950/40 text-red-200",
+  "Not Interested": "border-amber-500/30 bg-amber-950/40 text-amber-100",
+  "Interested/Closed": "border-emerald-500/40 bg-emerald-900/50 text-emerald-100",
+};
+
+export function LeadCard({
+  lead,
+  loading,
+  calling,
+  variant = "compact",
+}: Props) {
   if (loading) {
     return (
-      <section className="rounded-2xl bg-[var(--card)] p-5 animate-pulse safe-top">
-        <div className="h-6 w-2/3 rounded bg-zinc-800" />
-        <div className="mt-3 h-4 w-1/3 rounded bg-zinc-800" />
-        <div className="mt-4 h-4 w-full rounded bg-zinc-800" />
+      <section className="lead-card glass animate-pulse">
+        <div className="h-3 w-20 rounded-full bg-white/10" />
+        <div className="mt-2 h-5 w-3/4 rounded bg-white/10" />
       </section>
     );
   }
 
   if (!lead) {
     return (
-      <section className="rounded-2xl bg-[var(--card)] p-5 text-center safe-top">
-        <p className="text-lg font-semibold">Queue empty</p>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          Run the Mac Mini scraper or add leads in Supabase.
+      <section className="lead-card lead-card--empty glass">
+        <p className="text-sm font-medium">Queue empty</p>
+        <p className="mt-1 text-xs text-[var(--text-secondary)]">
+          Run the scraper or add leads in Supabase.
         </p>
       </section>
     );
@@ -29,31 +43,75 @@ export function LeadCard({ lead, loading }: Props) {
 
   const websiteLabel = lead.website?.trim()
     ? lead.website
-    : "No website — strong pitch angle";
+    : "No website";
+
+  const statusClass =
+    STATUS_STYLE[calling ? "Calling" : lead.status] ?? STATUS_STYLE.New;
+
+  if (variant === "strip") {
+    return (
+      <section className="lead-card lead-card--strip glass">
+        <div className="lead-card-strip-row">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{lead.business_name}</p>
+            <a
+              href={`tel:${lead.phone.replace(/\D/g, "")}`}
+              className="mt-0.5 block truncate font-mono text-xs tabular-nums text-[var(--accent)]"
+            >
+              {lead.phone}
+            </a>
+          </div>
+          <span
+            className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${statusClass}`}
+          >
+            On call
+          </span>
+        </div>
+      </section>
+    );
+  }
 
   return (
-    <section className="rounded-2xl bg-[var(--card)] p-5 shadow-lg safe-top">
-      <p className="text-xs uppercase tracking-wider text-[var(--muted)]">
-        Current lead
-      </p>
-      <h1 className="mt-1 text-2xl font-bold leading-tight">
-        {lead.business_name}
-      </h1>
-      <p className="mt-2 text-sm text-emerald-400">{lead.niche ?? "Local service"}</p>
-      <p className="mt-4 text-sm text-[var(--muted)]">Website</p>
+    <section className="lead-card glass">
+      <div className="lead-card-row">
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-base font-semibold leading-tight">
+            {lead.business_name}
+          </h2>
+          <p className="mt-0.5 truncate text-xs text-[var(--text-secondary)]">
+            {lead.niche ?? "Local service"}
+          </p>
+        </div>
+        <span
+          className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase ${statusClass}`}
+        >
+          {lead.status}
+        </span>
+      </div>
+
+      <a
+        href={`tel:${lead.phone.replace(/\D/g, "")}`}
+        className="lead-card-phone"
+      >
+        {lead.phone}
+      </a>
+
       {lead.website ? (
         <a
-          href={lead.website.startsWith("http") ? lead.website : `https://${lead.website}`}
+          href={
+            lead.website.startsWith("http")
+              ? lead.website
+              : `https://${lead.website}`
+          }
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-1 block break-all text-base text-sky-400 underline"
+          className="lead-card-website"
         >
           {websiteLabel}
         </a>
       ) : (
-        <p className="mt-1 text-base text-amber-400">{websiteLabel}</p>
+        <p className="lead-card-website lead-card-website--none">{websiteLabel}</p>
       )}
-      <p className="mt-3 text-xs text-zinc-500">{lead.phone}</p>
     </section>
   );
 }

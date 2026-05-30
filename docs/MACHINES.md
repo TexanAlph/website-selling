@@ -27,11 +27,11 @@ This repo is shared via **GitHub** across two Macs (different Apple IDs).
 
 **Use for:**
 
-- `scraper/.env` with `GOOGLE_MAPS_API_KEY` + `SUPABASE_SERVICE_ROLE_KEY`
+- `scraper/.env` with `GOOGLE_MAPS_API_KEY` + `SUPABASE_SERVICE_ROLE_KEY` (scraper only — dialer does not use this)
 - Python venv: `scraper/.venv` lives **on the Mini only**
 - Cron / **launchd** to run `headless_scraper.py` (e.g. weekly Monday 4 AM)
 - Cache dir default: `~/.web-dialer/` on the **Mini** (place IDs, search cache)
-- Future AI swarm scripts (Janitor, Script Architect) — **Mini cron only**
+- `analysis/nightly_analyze.py` (optional if not using Vercel cron) — hits `/api/cron/analyze`
 
 **After `git pull` on the Mini:**
 

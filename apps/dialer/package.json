@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3002",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -13,6 +13,7 @@
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.1",
     "@twilio/voice-sdk": "^2.12.4",
+    "jose": "^6.2.3",
     "next": "15.5.18",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

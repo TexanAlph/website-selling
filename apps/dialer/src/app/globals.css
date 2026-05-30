@@ -1,39 +1,711 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #0a0a0b;
-  --card: #141416;
-  --accent: #22c55e;
-  --muted: #a1a1aa;
-  --danger: #ef4444;
-  --warn: #f59e0b;
+  --bg: #050608;
+  --bg-elevated: #0c0e14;
+  --surface: rgba(255, 255, 255, 0.045);
+  --surface-hover: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+  --accent: #34d399;
+  --accent-deep: #059669;
+  --accent-glow: rgba(52, 211, 153, 0.35);
+  --danger: #f87171;
+  --warn: #fbbf24;
+  --gold: #d4a574;
+  --card: rgba(18, 20, 28, 0.72);
+  --muted: var(--text-secondary);
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
 }
 
 html,
 body {
   height: 100%;
   margin: 0;
-  background: var(--bg);
-  color: #fafafa;
+  color: var(--text);
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
 }
 
 body {
-  font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    Helvetica,
-    Arial,
-    sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(
+      ellipse 120% 80% at 50% -30%,
+      rgba(52, 211, 153, 0.12),
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 70% 50% at 100% 50%,
+      rgba(99, 102, 241, 0.06),
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 0% 80%,
+      rgba(212, 165, 116, 0.05),
+      transparent 45%
+    );
 }
 
 .safe-bottom {
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 
 .safe-top {
-  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+}
+
+.safe-x {
+  padding-left: max(0.5rem, env(safe-area-inset-left));
+  padding-right: max(0.5rem, env(safe-area-inset-right));
+}
+
+/* Full-viewport app shell — grid prevents content overlapping tabs */
+.app-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: 100%;
+  max-width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+@supports not (height: 100dvh) {
+  .app-shell {
+    height: 100vh;
+    max-height: 100vh;
+  }
+}
+
+/* Login / standalone pages — not the dialer grid shell */
+.auth-page {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  overflow-y: auto;
+}
+
+.app-chrome {
+  grid-row: 1;
+  position: relative;
+  z-index: 30;
+  isolation: isolate;
+  pointer-events: auto;
+}
+
+.app-content {
+  grid-row: 2;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+
+/* Keypad fills remaining viewport */
+.keypad-shell {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+.keypad-display {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 4.25rem;
+  padding: 0.65rem 0.5rem 0.5rem;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.keypad-status {
+  margin-bottom: 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* Keypad — scales to screen width */
+.keypad-grid {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: clamp(0.65rem, 4.5vw, 1.35rem);
+  row-gap: clamp(0.4rem, 1.4dvh, 0.7rem);
+  padding-inline: clamp(0.25rem, 2vw, 0.75rem);
+}
+
+/* Glass surfaces */
+.glass {
+  background: var(--card);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+
+.glass-subtle {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Segmented control — native radio + label for reliable mobile taps */
+.segmented {
+  display: flex;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.segmented-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.segmented-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.6rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-tertiary);
+  touch-action: manipulation;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    color 0.2s,
+    background 0.25s,
+    box-shadow 0.25s;
+}
+
+.segmented-input:checked + .segmented-label {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.segmented-input:focus-visible + .segmented-label {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Number display */
+.dial-display {
+  font-variant-numeric: tabular-nums;
+  font-weight: 300;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.dial-display--empty {
+  color: rgba(255, 255, 255, 0.52);
+  font-weight: 400;
+  font-size: clamp(1.25rem, 5vw, 1.5rem);
+  letter-spacing: 0.06em;
+}
+
+.dial-display--active {
+  font-size: clamp(1.75rem, 7.5vw, 2.35rem);
+  font-weight: 300;
+  color: #fff;
+}
+
+.keypad-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: clamp(3.75rem, 17vw, 5.25rem);
+  margin-inline: auto;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.11) 0%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 4px 16px rgba(0, 0, 0, 0.25);
+  transition:
+    transform 0.12s ease,
+    background 0.15s,
+    box-shadow 0.15s;
+}
+
+.keypad-key:active:not(:disabled) {
+  transform: scale(0.94);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.keypad-key:disabled {
+  opacity: 0.35;
+}
+
+.keypad-digit {
+  font-size: clamp(1.5rem, 6.5vw, 2rem);
+  font-weight: 400;
+  line-height: 1;
+  color: var(--text);
+}
+
+.keypad-actions {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: clamp(0.65rem, 4.5vw, 1.35rem);
+  padding-inline: clamp(0.25rem, 2vw, 0.75rem);
+  padding-bottom: 0.15rem;
+}
+
+.keypad-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: clamp(4rem, 18vw, 5.5rem);
+  margin-inline: auto;
+  border-radius: 999px;
+  touch-action: manipulation;
+}
+
+.keypad-action-secondary {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.07) 100%
+  );
+  color: var(--text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+.keypad-action-secondary:active:not(:disabled) {
+  transform: scale(0.96);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.keypad-action-secondary:disabled {
+  opacity: 0.35;
+}
+
+.keypad-action-call.btn-call {
+  max-height: clamp(4.25rem, 19vw, 5.75rem);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset,
+    0 10px 32px var(--accent-glow),
+    0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.keypad-action-label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.keypad-action-label--call {
+  color: #042f1a;
+  font-size: 0.7rem;
+}
+
+.keypad-action-clear-x {
+  font-size: 1.65rem;
+  font-weight: 300;
+  line-height: 1;
+  color: #fff;
+}
+
+.keypad-action-delete {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+}
+
+.keypad-delete-symbol {
+  font-size: 2rem;
+  font-weight: 500;
+  line-height: 0.85;
+  color: #ffffff;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+}
+
+.keypad-sub {
+  margin-top: 2px;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--text-tertiary);
+}
+
+/* Call CTA */
+.btn-call {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #042f1a;
+  background: linear-gradient(145deg, #4ade80 0%, #22c55e 45%, #16a34a 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset,
+    0 8px 28px var(--accent-glow),
+    0 2px 8px rgba(0, 0, 0, 0.35);
+  transition:
+    transform 0.15s,
+    box-shadow 0.2s;
+}
+
+.btn-call:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.btn-call:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+.btn-call--end {
+  color: #fff;
+  background: linear-gradient(145deg, #f87171 0%, #ef4444 55%, #dc2626 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+    0 8px 28px rgba(248, 113, 113, 0.35);
+}
+
+.btn-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: transparent;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.btn-ghost:active:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+/* Primary actions (queue) */
+.btn-primary {
+  width: 100%;
+  border-radius: var(--radius-xl);
+  padding: 1.35rem 1.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #042f1a;
+  background: linear-gradient(145deg, #4ade80 0%, #22c55e 50%, #16a34a 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+    0 12px 36px var(--accent-glow);
+  transition: transform 0.15s;
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.btn-primary:disabled {
+  opacity: 0.38;
+  box-shadow: none;
+}
+
+.btn-primary--end {
+  color: #fff;
+  background: linear-gradient(145deg, #f87171 0%, #ef4444 55%, #dc2626 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+    0 12px 36px rgba(248, 113, 113, 0.3);
+}
+
+/* Inputs */
+.input-premium {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0.9rem 1.1rem;
+  font-size: 1rem;
+  color: var(--text);
+  outline: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.input-premium::placeholder {
+  color: var(--text-tertiary);
+}
+
+.input-premium:focus {
+  border-color: rgba(52, 211, 153, 0.45);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.12);
+}
+
+/* Badges & alerts */
+.badge-test {
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fcd34d;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+}
+
+.alert-error {
+  border-radius: var(--radius-lg);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.35);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+}
+
+/* Pulse when on call */
+@keyframes call-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(52, 211, 153, 0);
+  }
+}
+
+.call-active-ring {
+  animation: call-pulse 2s ease-in-out infinite;
+}
+
+/* Leads queue — compact card, coach grows on call, dock full width */
+.leads-shell {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.leads-top {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.leads-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.leads-main {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  margin-top: 0.35rem;
+}
+
+.leads-coach-pane {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  margin-top: 0.4rem;
+  overflow: hidden;
+}
+
+.leads-coach-pane > section {
+  flex: 1;
+  min-height: 0;
+}
+
+.leads-error {
+  margin-top: 0.5rem;
+  flex-shrink: 0;
+}
+
+.leads-call-btn {
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+  font-size: 0.95rem;
+}
+
+.leads-outcomes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.35rem, 1.5vw, 0.5rem);
+}
+
+/* Lead card — compact queue snippet */
+.lead-card {
+  width: 100%;
+  max-width: 100%;
+  flex-shrink: 0;
+  border-radius: var(--radius-lg);
+  padding: 0.6rem 0.7rem;
+  box-sizing: border-box;
+}
+
+.lead-card--empty {
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.lead-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.lead-card-phone {
+  display: block;
+  margin-top: 0.45rem;
+  font-family: ui-monospace, monospace;
+  font-size: 1.05rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  touch-action: manipulation;
+}
+
+.lead-card-website {
+  display: block;
+  margin-top: 0.35rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: rgb(125 211 252 / 0.9);
+  text-decoration: underline;
+  text-decoration-color: rgba(125, 211, 252, 0.35);
+  text-underline-offset: 2px;
+}
+
+.lead-card-website--none {
+  color: var(--gold);
+  text-decoration: none;
+}
+
+.lead-card--strip {
+  padding: 0.5rem 0.65rem;
+}
+
+.lead-card-strip-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.outcome-btn {
+  display: flex;
+  min-height: 3.1rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  border: 1px solid transparent;
+  padding: 0.4rem 0.25rem;
+  font-size: clamp(0.75rem, 3.2vw, 0.85rem);
+  font-weight: 600;
+  line-height: 1.15;
+  touch-action: manipulation;
+  transition: transform 0.12s, background 0.15s;
+}
+
+.outcome-btn span {
+  font-size: 0.65rem;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.outcome-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.outcome-btn:disabled {
+  opacity: 0.35;
+}
+
+.outcome-btn--danger {
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(127, 29, 29, 0.45);
+  color: #fecaca;
+}
+
+.outcome-btn--warn {
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(120, 53, 15, 0.4);
+  color: #fde68a;
+}
+
+.outcome-btn--accent {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(6, 78, 59, 0.45);
+  color: #a7f3d0;
 }

@@ -18,7 +18,10 @@ website-selling/
 │   ├── config.toml            # Local CLI (optional)
 │   └── migrations/
 │       ├── 001_create_leads.sql
-│       └── 002_coach_realtime.sql
+│       ├── 002_coach_realtime.sql
+│       └── 005_learning_loop.sql
+├── analysis/
+│   └── nightly_analyze.py     # Mac Mini — hits /api/cron/analyze
 └── apps/dialer/               # Next.js — deploy root for Vercel
     ├── src/
     │   ├── app/               # Pages + API routes
@@ -30,12 +33,10 @@ website-selling/
 ## 1. Supabase setup
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Run SQL in order:
-   - `supabase/migrations/001_create_leads.sql`
-   - `supabase/migrations/002_coach_realtime.sql`
+2. Run SQL migrations in order through `005_learning_loop.sql` (or `supabase db push`).
 3. **Realtime:** Dashboard → Database → Publications → `supabase_realtime` → enable `coach_messages`.
-4. **Auth:** Invite your account + employee (Email magic link). Redirect URL: `https://YOUR_VERCEL_DOMAIN/**` and `http://localhost:3000/**`.
-5. Copy keys: Project URL, anon key, service role key (Mac Mini + coach API only).
+4. **Login:** `david` / `x` + `DIALER_PASSWORD` in env (simple app session — Supabase is only for leads data, not auth).
+5. Copy keys: anon key on dialer; **service role** on Mac Mini (scraper) and **Vercel** (playbook + nightly cron).
 
 ### Leads table (reference)
 
@@ -102,9 +103,10 @@ On iPhone Safari, add the site to Home Screen for full-screen dialer UX.
 
 1. Push repo to GitHub.
 2. Vercel → New Project → import repo.
-3. Set **Root Directory** to `apps/dialer`.
-4. Add all env vars from `.env.example` (Production + Preview).
-5. Deploy.
+3. Set **Root Directory** to `apps/dialer` (critical — see [docs/VERCEL_SETUP.md](docs/VERCEL_SETUP.md)).
+4. Disable **Deployment Protection** on production so iPhone Safari can load the app.
+5. Add all env vars from `apps/dialer/.env.example` (Production).
+6. Redeploy and confirm build takes ~30s+ (Next.js), not ~2s.
 
 ## 5. Local dev
 
@@ -117,12 +119,27 @@ npm run dev
 
 Open on iPhone: same Wi‑Fi → `http://<your-mac-ip>:3000` (or use ngrok for Twilio webhooks).
 
+**Local test dialer (no Twilio, no leads in DB):** set `NEXT_PUBLIC_DIALER_TEST_MODE=true` in `apps/dialer/.env.local`, restart dev server, sign in — you get a mock lead and simulated calls to exercise the full UI.
+
 ## Dialer UX (mobile Safari only)
 
 - **Lead card** — business, niche, website (or “missing” angle).
 - **Call Next Lead** — Twilio `Device.connect({ To: phone })` + Screen Wake Lock.
 - **AI Coach** — free STT (Safari Web Speech by default) → `/api/coach` → Gemini → Supabase Realtime.
 - **Outcomes** — Wrong Number / Not Interested / Interested → updates Supabase → loads next `status = 'New'`.
+- **Call learning** — each call gets a `call_sessions` row; post-call Gemini swarm (summary, score, objections, opener); playbook counters injected live; nightly cron or `analysis/nightly_analyze.py` processes backlog + daily report.
+
+### Call learning loop
+
+| Step | What happens |
+|------|----------------|
+| Call start | `POST /api/calls/session` — ties `session_id` to `lead_id` + niche |
+| During call | Transcripts + live counters → `coach_messages` (playbook-aware) |
+| Outcome / hang-up | `PATCH /api/calls/session/:id` — full transcript, outcome, duration |
+| Post-call (background) | 3× Gemini: summarize, score/recommendations, extract winning lines → `call_sessions` + `playbook_entries` |
+| Nightly | Vercel cron `0 7 * * *` or Mac Mini `nightly_analyze.py` → pending sessions + `daily_insights` |
+
+Required for full loop: `GEMINI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` + `CRON_SECRET` on Vercel (playbook writes and cron).
 
 ### Free-first AI stack
 

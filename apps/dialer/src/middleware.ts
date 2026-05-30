@@ -1,38 +1,28 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getSessionFromRequest } from "@/lib/dialer-session";
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const { pathname } = request.nextUrl;
+  const isLogin = pathname.startsWith("/login");
+  const isAuthApi = pathname.startsWith("/api/auth");
+  const isTwilioVoice = pathname === "/api/twilio/voice";
+  const isCronAnalyze = pathname === "/api/cron/analyze";
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
-        },
-      },
-    },
-  );
+  if (isCronAnalyze) {
+    const secret = process.env.CRON_SECRET?.trim();
+    const auth = request.headers.get("authorization");
+    if (secret && auth === `Bearer ${secret}`) {
+      return NextResponse.next();
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionFromRequest(request);
 
-  const isLogin = request.nextUrl.pathname.startsWith("/login");
-  const isApi = request.nextUrl.pathname.startsWith("/api");
-
-  if (!user && !isLogin && !isApi) {
+  if (!user && !isLogin && !isAuthApi && !isTwilioVoice) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
@@ -44,7 +34,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {

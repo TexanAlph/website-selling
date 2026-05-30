@@ -1,6 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
 import { getCoachStackConfig } from "./config";
 import { generateCounterObjection } from "./gemini";
+import { formatPlaybookContext, getPlaybookForNiche } from "./playbook";
+import { createServerClient } from "@/lib/supabase/server";
+import { fetchLeadContext } from "@/lib/calls/sessions";
+import { normalizeNiche } from "@/lib/calls/niche";
 
 export type CoachRunInput = {
   sessionId: string;
@@ -15,14 +18,17 @@ export async function runCoachPipeline(input: CoachRunInput) {
     throw new Error("Empty transcript");
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceKey) {
-    throw new Error("Supabase server credentials not configured");
+  const stack = getCoachStackConfig();
+  const supabase = createServerClient();
+
+  let niche: string | null = null;
+  if (leadId) {
+    const lead = await fetchLeadContext(leadId);
+    niche = lead?.niche ?? null;
   }
 
-  const stack = getCoachStackConfig();
-  const supabase = createClient(supabaseUrl, serviceKey);
+  const playbook = await getPlaybookForNiche(niche);
+  const playbookContext = formatPlaybookContext(playbook);
 
   await supabase.from("coach_messages").insert({
     session_id: sessionId,
@@ -31,7 +37,11 @@ export async function runCoachPipeline(input: CoachRunInput) {
     content: trimmed.slice(-500),
   });
 
-  const counter = await generateCounterObjection(trimmed, stack.geminiModel);
+  const counter = await generateCounterObjection(
+    trimmed,
+    stack.geminiModel,
+    playbookContext,
+  );
 
   const { data, error } = await supabase
     .from("coach_messages")
@@ -48,5 +58,10 @@ export async function runCoachPipeline(input: CoachRunInput) {
     throw new Error(error.message);
   }
 
-  return { message: data, stack };
+  return {
+    message: data,
+    stack,
+    niche: normalizeNiche(niche),
+    playbookUsed: playbook.length,
+  };
 }

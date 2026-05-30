@@ -1,0 +1,7 @@
+{
+  "name": "website-selling",
+  "private": true,
+  "scripts": {
+    "vercel-build": "npm install --prefix apps/dialer && npm run build --prefix apps/dialer"
+  }
+}
