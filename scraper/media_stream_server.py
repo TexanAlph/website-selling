@@ -120,9 +120,17 @@ async def handler(websocket):
 
             if event == "start":
                 start = data.get("start", {})
-                custom = start.get("customParameters", {})
-                session_id = custom.get("sessionId") or start.get("customParameters", {}).get(
-                    "sessionId"
+                custom = start.get("customParameters") or {}
+                if isinstance(custom, list):
+                    custom = {
+                        p.get("name"): p.get("value")
+                        for p in custom
+                        if isinstance(p, dict)
+                    }
+                session_id = (
+                    custom.get("sessionId")
+                    or custom.get("sessionid")
+                    or start.get("callSid")
                 )
                 LOG.info("Stream start session=%s", session_id)
                 continue

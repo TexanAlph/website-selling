@@ -75,11 +75,11 @@ Load: `launchctl load ~/Library/LaunchAgents/com.webdialer.scraper.plist`
 
 When both reps have **100** `New` leads each, the scraper logs `skipped` and uses **$0** Google Places that hour.
 
-**Media Streams (prospect vs you on screen):**
+**Media Streams (prospect vs you on screen):** full steps in [docs/MEDIA_STREAMS_SETUP.md](MEDIA_STREAMS_SETUP.md)
 
-1. Mini: `python media_stream_server.py` (port 8765)
-2. Expose `wss://YOUR_HOST/media` → set `MEDIA_STREAM_WSS_URL` on **Vercel**
-3. Set `DEEPGRAM_API_KEY` on Mini `scraper/.env`
+1. Mini: `./mac-mini/run-media-stream.sh` (port 8765)
+2. Tunnel (ngrok): `ngrok http 8765` → `MEDIA_STREAM_WSS_URL=wss://…` on **Vercel**
+3. `DEEPGRAM_API_KEY` in Mini `scraper/.env`
 
 ---
 

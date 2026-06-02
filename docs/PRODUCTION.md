@@ -2,7 +2,7 @@
 
 ## One-time setup
 
-1. **Supabase** — Run migrations `001` through `010` in order (includes `assigned_rep`, scraper `skipped`, speaker transcript roles).
+1. **Supabase** — Run migrations `001` through `010`, or paste **[supabase/apply_006_010_dashboard.sql](supabase/apply_006_010_dashboard.sql)** into Dashboard → SQL Editor (one click if 001–005 already applied).
 2. **Realtime** — Dashboard → Publications → `supabase_realtime` → enable `coach_messages` and **`leads`**.
 3. **Vercel** — Root Directory `apps/dialer`; env vars from `apps/dialer/.env.example`.
 4. **Mac Mini** — `headless_scraper.py` on launchd; optional `analysis/nightly_analyze.py`.
