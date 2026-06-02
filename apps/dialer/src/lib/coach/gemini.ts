@@ -1,27 +1,37 @@
 import { geminiText } from "./gemini-shared";
+import {
+  buildCoachContext,
+  type BuiltCoachContext,
+  type CoachContextInput,
+} from "./sales-sop";
 
-const SYSTEM_BASE = `You are a real-time sales coach for a web design cold call ($599 one-time sites).
-The rep sells websites to local businesses with no/missing sites.
-Reply with ONE short counter-objection (max 2 sentences) the rep can say next.
-Be direct, conversational, never robotic. If no objection detected, say "Keep probing for pain around Google visibility."`;
+export type { BuiltCoachContext, CoachContextInput };
 
+export async function generateCoachLine(
+  input: CoachContextInput,
+  modelName: string,
+): Promise<BuiltCoachContext & { line: string }> {
+  const ctx = buildCoachContext(input);
+
+  const text = await geminiText(modelName, ctx.systemPrompt, ctx.userPrompt);
+
+  return {
+    ...ctx,
+    line:
+      text ||
+      "Quick question — when locals Google your service, do they find you first or the next company?",
+  };
+}
+
+/** @deprecated Use generateCoachLine */
 export async function generateCounterObjection(
   transcript: string,
   modelName: string,
   playbookContext = "",
 ): Promise<string> {
-  const system = playbookContext
-    ? `${SYSTEM_BASE}${playbookContext}`
-    : SYSTEM_BASE;
-
-  const text = await geminiText(
+  const result = await generateCoachLine(
+    { transcript, playbookContext },
     modelName,
-    system,
-    `Live transcript snippet:\n${transcript.trim()}`,
   );
-
-  return (
-    text ||
-    "Acknowledge their concern, then ask one clarifying question."
-  );
+  return result.line;
 }

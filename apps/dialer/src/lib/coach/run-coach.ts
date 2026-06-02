@@ -1,9 +1,11 @@
 import { getCoachStackConfig } from "./config";
-import { generateCounterObjection } from "./gemini";
+import { generateCoachLine } from "./gemini";
 import { formatPlaybookContext, getPlaybookForNiche } from "./playbook";
 import { createServerClient } from "@/lib/supabase/server";
 import { fetchLeadContext } from "@/lib/calls/sessions";
 import { normalizeNiche } from "@/lib/calls/niche";
+import type { CallStage } from "./call-stage";
+import { parseCounterDisplay } from "./coach-display";
 
 export type CoachRunInput = {
   sessionId: string;
@@ -22,13 +24,43 @@ export async function runCoachPipeline(input: CoachRunInput) {
   const supabase = createServerClient();
 
   let niche: string | null = null;
+  let businessName: string | null = null;
+  let hasWebsite = false;
+
   if (leadId) {
     const lead = await fetchLeadContext(leadId);
     niche = lead?.niche ?? null;
+    businessName = lead?.business_name ?? null;
+    hasWebsite = Boolean(lead?.website?.trim());
   }
 
   const playbook = await getPlaybookForNiche(niche);
   const playbookContext = formatPlaybookContext(playbook);
+
+  const { data: priorCounters } = await supabase
+    .from("coach_messages")
+    .select("content")
+    .eq("session_id", sessionId)
+    .eq("role", "counter")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  let previousStage: CallStage | undefined;
+  if (priorCounters?.[0]?.content) {
+    const { stage } = parseCounterDisplay(priorCounters[0].content);
+    const stages: CallStage[] = [
+      "opening",
+      "gatekeeper",
+      "discovery",
+      "pitch",
+      "objection",
+      "closing",
+      "wrap",
+    ];
+    if (stage && stages.includes(stage as CallStage)) {
+      previousStage = stage as CallStage;
+    }
+  }
 
   await supabase.from("coach_messages").insert({
     session_id: sessionId,
@@ -37,11 +69,19 @@ export async function runCoachPipeline(input: CoachRunInput) {
     content: trimmed.slice(-500),
   });
 
-  const counter = await generateCounterObjection(
-    trimmed,
+  const coached = await generateCoachLine(
+    {
+      transcript: trimmed,
+      niche,
+      businessName,
+      hasWebsite,
+      playbookContext,
+      previousStage,
+    },
     stack.geminiModel,
-    playbookContext,
   );
+
+  const counterContent = `[${coached.stage}] ${coached.line}`;
 
   const { data, error } = await supabase
     .from("coach_messages")
@@ -49,7 +89,7 @@ export async function runCoachPipeline(input: CoachRunInput) {
       session_id: sessionId,
       lead_id: leadId ?? null,
       role: "counter",
-      content: counter,
+      content: counterContent,
     })
     .select("id, content, created_at, role")
     .single();
@@ -63,5 +103,7 @@ export async function runCoachPipeline(input: CoachRunInput) {
     stack,
     niche: normalizeNiche(niche),
     playbookUsed: playbook.length,
+    stage: coached.stage,
+    stageLabel: coached.stageLabel,
   };
 }

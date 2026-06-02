@@ -3,12 +3,12 @@ import twilio from "twilio";
 
 /**
  * Twilio TwiML App Voice URL — dials the lead number from the browser client.
- * Configure in Twilio Console → TwiML Apps → Voice Request URL:
- *   https://YOUR_DOMAIN/api/twilio/voice
+ * Optional Media Stream (Phase 2): set MEDIA_STREAM_WSS_URL on Vercel.
  */
 export async function POST(request: NextRequest) {
   const form = await request.formData();
   const to = (form.get("To") as string | null)?.trim();
+  const sessionId = (form.get("sessionId") as string | null)?.trim();
 
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const response = new VoiceResponse();
@@ -22,6 +22,13 @@ export async function POST(request: NextRequest) {
   if (!callerId) {
     response.say("Caller ID not configured.");
     return twiml(response);
+  }
+
+  const streamUrl = process.env.MEDIA_STREAM_WSS_URL?.trim();
+  if (streamUrl && sessionId) {
+    const start = response.start();
+    const stream = start.stream({ url: streamUrl });
+    stream.parameter({ name: "sessionId", value: sessionId });
   }
 
   const dial = response.dial({ callerId });

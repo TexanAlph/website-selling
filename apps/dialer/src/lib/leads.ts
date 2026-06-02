@@ -12,6 +12,7 @@ export type Lead = {
   website: string | null;
   status: LeadStatus;
   niche: string | null;
+  assigned_rep: string | null;
   created_at: string;
 };
 

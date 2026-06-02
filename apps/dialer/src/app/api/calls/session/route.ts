@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSessionUser } from "@/lib/dialer-session";
 import { createCallSession } from "@/lib/calls/sessions";
 import type { CallSource } from "@/lib/calls/types";
 
 export async function POST(request: NextRequest) {
+  const rep = await getSessionUser();
+  if (!rep) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const sessionId = body.sessionId as string | undefined;
@@ -20,6 +26,7 @@ export async function POST(request: NextRequest) {
       leadId: body.leadId ?? null,
       niche: body.niche ?? null,
       source,
+      repName: rep,
     });
 
     return NextResponse.json({ ok: true });

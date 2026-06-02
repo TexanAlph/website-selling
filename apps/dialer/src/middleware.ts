@@ -1,17 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionFromRequest } from "@/lib/dialer-session";
+import { isAuthorizedCron } from "@/lib/cron-auth";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isLogin = pathname.startsWith("/login");
   const isAuthApi = pathname.startsWith("/api/auth");
   const isTwilioVoice = pathname === "/api/twilio/voice";
-  const isCronAnalyze = pathname === "/api/cron/analyze";
+  const isCronJob =
+    pathname === "/api/cron/analyze" ||
+    pathname === "/api/cron/reset-calling";
 
-  if (isCronAnalyze) {
-    const secret = process.env.CRON_SECRET?.trim();
-    const auth = request.headers.get("authorization");
-    if (secret && auth === `Bearer ${secret}`) {
+  if (isCronJob) {
+    if (isAuthorizedCron(request)) {
       return NextResponse.next();
     }
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -38,5 +39,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg).*)"],
 };

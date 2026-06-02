@@ -229,6 +229,23 @@ body {
   outline-offset: 2px;
 }
 
+.segmented-label .segmented-badge {
+  margin-left: 0.35rem;
+  min-width: 1.25rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text);
+  background: rgba(52, 211, 153, 0.22);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.segmented-input:checked + .segmented-label .segmented-badge {
+  background: rgba(52, 211, 153, 0.32);
+}
+
 /* Number display */
 .dial-display {
   font-variant-numeric: tabular-nums;
@@ -551,6 +568,238 @@ body {
 .leads-top {
   width: 100%;
   flex-shrink: 0;
+}
+
+.leads-queue-count {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.leads-queue-count-value {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.leads-queue-count-hint {
+  font-weight: 500;
+}
+
+.rep-chip {
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: capitalize;
+  color: var(--accent);
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+}
+
+.insights-strip {
+  margin-bottom: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-lg);
+}
+
+.insights-strip-headline {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.insights-strip-muted {
+  margin: 0.25rem 0 0;
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.insights-strip-scraper {
+  margin: 0.4rem 0 0;
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+}
+
+.insights-status-ok {
+  color: var(--accent);
+}
+
+.insights-status-err {
+  color: #f87171;
+}
+
+.insights-strip-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  color: #fca5a5;
+}
+
+.post-call-recap {
+  margin-bottom: 0.5rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+}
+
+.post-call-recap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.post-call-recap-title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.post-call-dismiss {
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0 0.35rem;
+}
+
+.post-call-recap-loading {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.post-call-recap-summary {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.post-call-recap-score {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.post-call-recap-block {
+  margin-top: 0.5rem;
+}
+
+.post-call-recap-label {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.post-call-recap-list {
+  margin: 0.25rem 0 0;
+  padding-left: 1rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.coach-stage-pill {
+  display: inline-flex;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #a7f3d0;
+  background: rgba(52, 211, 153, 0.15);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.coach-listening-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+}
+
+.coach-listening-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: call-pulse 1.2s ease-in-out infinite;
+}
+
+.coach-live-feed {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.coach-line-prospect,
+.coach-line-rep,
+.coach-line-mixed {
+  list-style: none;
+}
+
+.coach-speaker-tag {
+  display: inline-block;
+  margin-right: 0.35rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+
+.coach-line-prospect .coach-speaker-tag {
+  color: #93c5fd;
+}
+
+.coach-line-rep .coach-speaker-tag {
+  color: var(--accent);
+}
+
+.coach-say-now {
+  flex-shrink: 0;
+}
+
+.scraper-status-strip {
+  margin-top: 0.25rem;
+}
+
+.coach-feedback-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.coach-feedback-btn {
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 .leads-actions {

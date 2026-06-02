@@ -118,7 +118,7 @@ export function usePhoneCall() {
         if (opts?.beforeConnect) await opts.beforeConnect(sid);
 
         const call = await deviceRef.current.connect({
-          params: { To: phoneE164 },
+          params: { To: phoneE164, sessionId: sid },
         });
 
         activeCallRef.current = call;

@@ -40,8 +40,13 @@ In **Settings** → **Environment Variables** (Production), add at minimum:
 | `TWILIO_TWIML_APP_SID` | Calling |
 | `TWILIO_CALLER_ID` | Outbound caller ID |
 | `GEMINI_API_KEY` | Coach (add when ready) |
-
 Redeploy after adding vars.
+
+**Optional:** `CRON_SECRET` only for Mac Mini `nightly_analyze.py`. Vercel scheduled crons work without it (`x-vercel-cron` header).
+
+**Test mode:** Do not set `NEXT_PUBLIC_DIALER_TEST_MODE=false`. With real Supabase URL + anon key, the app uses production mode automatically.
+
+**Migrations:** Applied on linked project through `007` (includes Realtime on `leads`).
 
 ## 4. App login (not Supabase Auth)
 

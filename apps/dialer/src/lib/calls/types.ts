@@ -25,3 +25,14 @@ export type FinalizeCallInput = {
   outcomeStatus?: LeadStatus | null;
   endReason: "outcome" | "hangup" | "manual";
 };
+
+export type SessionRecap = {
+  summary: string | null;
+  repScore: number | null;
+  objections: string[];
+  recommendations: string | null;
+  openerSuggestion: string | null;
+  outcomeStatus: string | null;
+  durationSeconds: number | null;
+  analysisStatus: string;
+};

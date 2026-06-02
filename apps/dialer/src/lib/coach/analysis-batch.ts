@@ -1,25 +1,12 @@
-import { createServiceClient } from "@/lib/supabase/service";
+import { createServerClient } from "@/lib/supabase/server";
 import { runPostCallSwarm } from "./post-call";
 import { geminiText, parseJsonBlock } from "./gemini-shared";
 import { getCoachStackConfig } from "./config";
 import { normalizeNiche } from "@/lib/calls/niche";
 import { upsertPlaybookEntry } from "./playbook";
+import { buildDailyAnalystPrompt } from "./sales-sop";
 
 const BATCH_LIMIT = 25;
-
-const DAILY_SYSTEM = `You are a sales ops analyst for a web-design cold-calling team.
-Given aggregate stats and sample calls, produce JSON only:
-{
-  "headline": "one line",
-  "wins_vs_losses": "short comparison",
-  "top_objections": ["..."],
-  "script_tweaks": ["actionable tweak 1", "tweak 2"],
-  "focus_niche": "which niche to prioritize tomorrow and why",
-  "playbook_candidates": [
-    {"niche":"roofing|all","objection_pattern":"...","winning_response":"..."}
-  ]
-}
-Max 3 playbook_candidates. Be specific to $599 one-time websites for locals with no site.`;
 
 export type BatchResult = {
   processed: number;
@@ -28,7 +15,7 @@ export type BatchResult = {
 };
 
 export async function runPendingCallAnalysis(): Promise<BatchResult> {
-  const supabase = createServiceClient();
+  const supabase = createServerClient();
   const { data: pending, error } = await supabase
     .from("call_sessions")
     .select("id")
@@ -57,7 +44,7 @@ export async function runPendingCallAnalysis(): Promise<BatchResult> {
 }
 
 async function runDailyInsightReport(
-  supabase: ReturnType<typeof createServiceClient>,
+  supabase: ReturnType<typeof createServerClient>,
 ): Promise<boolean> {
   const stack = getCoachStackConfig();
   const today = new Date().toISOString().slice(0, 10);
@@ -110,7 +97,7 @@ async function runDailyInsightReport(
     samples,
   ].join("\n");
 
-  const raw = await geminiText(stack.geminiModel, DAILY_SYSTEM, payload);
+  const raw = await geminiText(stack.geminiModel, buildDailyAnalystPrompt(), payload);
   const parsed = parseJsonBlock<Record<string, unknown>>(raw);
   const content = parsed ?? { raw, generated_at: new Date().toISOString() };
 

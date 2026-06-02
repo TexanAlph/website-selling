@@ -1,5 +1,4 @@
 import { createServerClient } from "@/lib/supabase/server";
-import { createServiceClient, hasServiceRole } from "@/lib/supabase/service";
 import { normalizeNiche } from "@/lib/calls/niche";
 
 export type PlaybookEntry = {
@@ -44,9 +43,7 @@ export async function upsertPlaybookEntry(input: {
   sourceSessionId?: string | null;
   won: boolean;
 }) {
-  if (!hasServiceRole()) return;
-
-  const supabase = createServiceClient();
+  const supabase = createServerClient();
   const niche = normalizeNiche(input.niche);
   const winDelta = input.won ? 1 : 0;
   const lossDelta = input.won ? 0 : 1;
@@ -91,8 +88,8 @@ export async function bumpPlaybookOutcomes(
   niche: string | null,
   outcomeStatus: string | null,
 ) {
-  if (!hasServiceRole() || !outcomeStatus) return;
-  const supabase = createServiceClient();
+  if (!outcomeStatus) return;
+  const supabase = createServerClient();
   const key = normalizeNiche(niche);
   const won = outcomeStatus === "Interested/Closed";
 

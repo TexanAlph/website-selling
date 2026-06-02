@@ -1,13 +1,16 @@
 import type { LeadStatus } from "@/lib/leads";
 import { createServerClient } from "@/lib/supabase/server";
 import { normalizeNiche } from "./niche";
-import type { CallSource, FinalizeCallInput } from "./types";
+import type { CallSource, FinalizeCallInput, SessionRecap } from "./types";
+
+export type { SessionRecap } from "./types";
 
 export async function createCallSession(input: {
   sessionId: string;
   leadId?: string | null;
   niche?: string | null;
   source: CallSource;
+  repName?: string | null;
 }) {
   const supabase = createServerClient();
   const niche = normalizeNiche(input.niche);
@@ -18,6 +21,7 @@ export async function createCallSession(input: {
       lead_id: input.leadId ?? null,
       niche: niche === "all" ? null : niche,
       call_source: input.source,
+      rep_name: input.repName ?? null,
       started_at: new Date().toISOString(),
       analysis_status: "pending",
     },
@@ -61,7 +65,9 @@ export async function finalizeCallSession(
 
   const { data: existing, error: fetchErr } = await supabase
     .from("call_sessions")
-    .select("started_at, ended_at")
+    .select(
+      "started_at, ended_at, analysis_status, summary, rep_score, objections, recommendations, opener_suggestion, outcome_status, duration_seconds",
+    )
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -74,7 +80,10 @@ export async function finalizeCallSession(
   }
 
   if (existing?.ended_at) {
-    return { alreadyEnded: true as const };
+    return {
+      alreadyEnded: true as const,
+      recap: sessionRecapFromRow(existing),
+    };
   }
 
   const startedAt = existing?.started_at
@@ -121,7 +130,49 @@ export async function finalizeCallSession(
     durationSeconds,
     transcriptFull,
     outcomeStatus,
+    recap: null,
   };
+}
+
+function sessionRecapFromRow(row: {
+  summary?: string | null;
+  rep_score?: number | null;
+  objections?: unknown;
+  recommendations?: string | null;
+  opener_suggestion?: string | null;
+  outcome_status?: string | null;
+  duration_seconds?: number | null;
+  analysis_status?: string;
+}): SessionRecap {
+  const objections = Array.isArray(row.objections)
+    ? (row.objections as string[])
+    : [];
+  return {
+    summary: row.summary ?? null,
+    repScore: row.rep_score ?? null,
+    objections,
+    recommendations: row.recommendations ?? null,
+    openerSuggestion: row.opener_suggestion ?? null,
+    outcomeStatus: row.outcome_status ?? null,
+    durationSeconds: row.duration_seconds ?? null,
+    analysisStatus: row.analysis_status ?? "pending",
+  };
+}
+
+export async function getSessionRecap(
+  sessionId: string,
+): Promise<SessionRecap | null> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("call_sessions")
+    .select(
+      "summary, rep_score, objections, recommendations, opener_suggestion, outcome_status, duration_seconds, analysis_status, ended_at",
+    )
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (error || !data?.ended_at) return null;
+  return sessionRecapFromRow(data);
 }
 
 export async function markSessionAnalysis(
@@ -153,7 +204,7 @@ export async function getSessionForAnalysis(sessionId: string) {
   const { data, error } = await supabase
     .from("call_sessions")
     .select(
-      "id, lead_id, niche, outcome_status, transcript_full, duration_seconds, call_source",
+      "id, lead_id, niche, outcome_status, transcript_full, duration_seconds, call_source, rep_name",
     )
     .eq("id", sessionId)
     .single();

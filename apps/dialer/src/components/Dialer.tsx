@@ -5,7 +5,12 @@ import type { Lead, LeadStatus } from "@/lib/leads";
 import { OUTCOME_STATUSES } from "@/lib/leads";
 import { isTestDialerMode, MOCK_TEST_LEAD } from "@/lib/test-dialer";
 import { usePhoneCall } from "@/hooks/usePhoneCall";
+import { useLeadQueueCount } from "@/hooks/useLeadQueueCount";
+import { useSessionRecap } from "@/hooks/useSessionRecap";
+import { useInsights } from "@/hooks/useInsights";
 import { apiCreateCallSession, apiFinalizeCallSession } from "@/lib/calls/client";
+import { hapticOutcome } from "@/lib/haptics";
+import type { DialerUsername } from "@/lib/dialer-auth";
 import { PhoneKeypad } from "./PhoneKeypad";
 import { LeadsQueue } from "./LeadsQueue";
 
@@ -26,17 +31,37 @@ async function patchLead(id: string, status: LeadStatus) {
 }
 
 export function Dialer() {
-  const [tab, setTab] = useState<Tab>("keypad");
+  const [tab, setTab] = useState<Tab>("queue");
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
   const [queueError, setQueueError] = useState<string | null>(null);
+  const [username, setUsername] = useState<DialerUsername | null>(null);
+  const [recapSessionId, setRecapSessionId] = useState<string | null>(null);
+
   const phone = usePhoneCall();
+  const { queueCount, setQueueCount } = useLeadQueueCount(true);
+  const { recap, loading: recapLoading } = useSessionRecap(recapSessionId);
+  const {
+    data: insights,
+    loading: insightsLoading,
+    refresh: refreshInsights,
+  } = useInsights(tab === "queue");
 
   const error = queueError ?? phone.error;
+
+  useEffect(() => {
+    void fetch("/api/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.username) setUsername(json.username as DialerUsername);
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchNextLead = useCallback(async () => {
     if (testMode) {
       setLead({ ...MOCK_TEST_LEAD, status: "New" });
+      setQueueCount(1);
       setLoading(false);
       return;
     }
@@ -48,16 +73,23 @@ export function Dialer() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to load lead");
       setLead(json.lead as Lead | null);
+      if (typeof json.queueCount === "number") {
+        setQueueCount(json.queueCount);
+      }
     } catch (e) {
       setQueueError(e instanceof Error ? e.message : "Failed to load lead");
       setLead(null);
     }
     setLoading(false);
-  }, []);
+  }, [setQueueCount]);
 
   useEffect(() => {
     void fetchNextLead();
   }, [fetchNextLead]);
+
+  const showRecapForSession = (sessionId: string | null) => {
+    if (sessionId && !testMode) setRecapSessionId(sessionId);
+  };
 
   const resetLeadAfterCall = async () => {
     if (testMode && lead) {
@@ -78,11 +110,13 @@ export function Dialer() {
       endReason: "outcome" | "hangup" | "manual";
     },
   ) => {
-    if (!sessionId || testMode) return;
+    if (!sessionId || testMode) return null;
     try {
-      await apiFinalizeCallSession(sessionId, opts);
+      const res = await apiFinalizeCallSession(sessionId, opts);
+      showRecapForSession(sessionId);
+      return res;
     } catch {
-      /* non-blocking — queue still works */
+      return null;
     }
   };
 
@@ -94,12 +128,16 @@ export function Dialer() {
     });
   };
 
-  const setLeadStatus = async (status: LeadStatus) => {
+  const setLeadStatus = async (
+    status: LeadStatus,
+    outcomeKey: keyof typeof OUTCOME_STATUSES,
+  ) => {
     if (!lead) return;
     const leadId = lead.id;
     const sid = phone.getSessionId();
     setLoading(true);
     setQueueError(null);
+    hapticOutcome(outcomeKey);
 
     if (testMode) {
       if (phone.calling) await phone.endCall();
@@ -122,6 +160,7 @@ export function Dialer() {
     }
 
     await fetchNextLead();
+    void refreshInsights();
   };
 
   const callNextLead = async () => {
@@ -133,6 +172,7 @@ export function Dialer() {
 
     phone.setError(null);
     setQueueError(null);
+    setRecapSessionId(null);
 
     await phone.startCall(lead.phone, {
       beforeConnect: async (sessionId) => {
@@ -140,7 +180,15 @@ export function Dialer() {
           setLead({ ...lead, status: "Calling" });
           return;
         }
-        await patchLead(lead.id, "Calling");
+        try {
+          await patchLead(lead.id, "Calling");
+        } catch (e) {
+          setQueueError(
+            e instanceof Error ? e.message : "Lead already claimed",
+          );
+          await fetchNextLead();
+          return;
+        }
         await apiCreateCallSession({
           sessionId,
           leadId: lead.id,
@@ -177,7 +225,7 @@ export function Dialer() {
   };
 
   const handleOutcome = (key: keyof typeof OUTCOME_STATUSES) => {
-    void setLeadStatus(OUTCOME_STATUSES[key]);
+    void setLeadStatus(OUTCOME_STATUSES[key], key);
   };
 
   async function signOut() {
@@ -185,49 +233,63 @@ export function Dialer() {
     window.location.href = "/login";
   }
 
+  const repLabel = username
+    ? username.charAt(0).toUpperCase() + username.slice(1)
+    : null;
+
   return (
     <main className="app-shell safe-bottom sm:mx-auto sm:max-w-md">
       <div className="app-chrome safe-x safe-top">
         <header className="flex items-center justify-between gap-2 pb-2">
-          <h1 className="text-lg font-semibold tracking-tight">Dialer</h1>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              className="btn-ghost rounded-full px-2.5 py-1 text-xs font-medium text-[var(--text-tertiary)]"
-            >
-              Sign out
-            </button>
+            <h1 className="text-lg font-semibold tracking-tight">Dialer</h1>
+            {repLabel ? (
+              <span className="rep-chip">{repLabel}</span>
+            ) : null}
           </div>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="btn-ghost rounded-full px-2.5 py-1 text-xs font-medium text-[var(--text-tertiary)]"
+          >
+            Sign out
+          </button>
         </header>
 
-        <TabSwitcher tab={tab} onChange={setTab} />
+        <TabSwitcher tab={tab} queueCount={queueCount} onChange={setTab} />
       </div>
 
       <div className="app-content safe-x">
-      {tab === "keypad" ? (
-        <PhoneKeypad
-          testMode={phone.testMode}
-          deviceReady={phone.deviceReady}
-          calling={phone.calling}
-          sessionId={phone.sessionId}
-          error={error}
-          onStartCall={startKeypadCall}
-          onEndCall={endKeypadCall}
-        />
-      ) : (
-        <LeadsQueue
-          lead={lead}
-          loading={loading}
-          calling={phone.calling}
-          deviceReady={phone.deviceReady}
-          testMode={phone.testMode}
-          sessionId={phone.sessionId}
-          error={error}
-          onCallLead={() => void callNextLead()}
-          onOutcome={handleOutcome}
-        />
-      )}
+        {tab === "keypad" ? (
+          <PhoneKeypad
+            testMode={phone.testMode}
+            deviceReady={phone.deviceReady}
+            calling={phone.calling}
+            sessionId={phone.sessionId}
+            error={error}
+            onStartCall={startKeypadCall}
+            onEndCall={endKeypadCall}
+          />
+        ) : (
+          <LeadsQueue
+            lead={lead}
+            queueCount={queueCount}
+            loading={loading}
+            calling={phone.calling}
+            deviceReady={phone.deviceReady}
+            testMode={phone.testMode}
+            sessionId={phone.sessionId}
+            error={error}
+            recap={recap}
+            recapLoading={recapLoading}
+            insights={insights}
+            insightsLoading={insightsLoading}
+            onDismissRecap={() => setRecapSessionId(null)}
+            onRetryQueue={() => void fetchNextLead()}
+            onCallLead={() => void callNextLead()}
+            onOutcome={handleOutcome}
+          />
+        )}
       </div>
     </main>
   );
@@ -235,13 +297,22 @@ export function Dialer() {
 
 function TabSwitcher({
   tab,
+  queueCount,
   onChange,
 }: {
   tab: Tab;
+  queueCount: number | null;
   onChange: (tab: Tab) => void;
 }) {
+  const leadsBadge =
+    queueCount === null ? null : queueCount > 99 ? "99+" : String(queueCount);
+
   return (
-    <div className="segmented relative mb-3" role="tablist" aria-label="Dialer mode">
+    <div
+      className="segmented relative mb-3"
+      role="tablist"
+      aria-label="Dialer mode"
+    >
       <input
         id="tab-keypad"
         type="radio"
@@ -264,6 +335,11 @@ function TabSwitcher({
       />
       <label htmlFor="tab-leads" className="segmented-label" role="tab">
         Leads
+        {leadsBadge !== null ? (
+          <span className="segmented-badge" aria-label={`${queueCount} in queue`}>
+            {leadsBadge}
+          </span>
+        ) : null}
       </label>
     </div>
   );

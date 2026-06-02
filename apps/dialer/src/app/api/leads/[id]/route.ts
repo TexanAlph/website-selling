@@ -7,7 +7,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await getSessionUser())) {
+  const rep = await getSessionUser();
+  if (!rep) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -21,13 +22,31 @@ export async function PATCH(
 
   try {
     const supabase = createServerClient();
-    const { error } = await supabase
+
+    let query = supabase
       .from("leads")
-      .update({ status })
+      .update({
+        status,
+        status_changed_at: new Date().toISOString(),
+      })
       .eq("id", id);
+
+    if (status === "Calling") {
+      query = query.eq("status", "New").eq("assigned_rep", rep);
+    } else {
+      query = query.eq("assigned_rep", rep);
+    }
+
+    const { data, error } = await query.select("id").maybeSingle();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (!data) {
+      return NextResponse.json(
+        { error: "Lead not available or already claimed" },
+        { status: 409 },
+      );
     }
     return NextResponse.json({ ok: true });
   } catch (e) {

@@ -8,6 +8,7 @@ import {
 import { bumpPlaybookOutcomes, upsertPlaybookEntry } from "./playbook";
 import { geminiText, parseJsonBlock } from "./gemini-shared";
 import { getCoachStackConfig } from "./config";
+import { buildPostCallSystemPrompt } from "./sales-sop";
 
 type SummaryResult = { summary: string };
 type ScoreResult = {
@@ -21,27 +22,6 @@ type PlaybookExtract = {
   winning_response: string;
   worth_saving: boolean;
 };
-
-const SUMMARIZER_SYSTEM = `You summarize cold calls for a web design sales rep ($599 sites, local businesses without websites).
-Return JSON only: {"summary":"2-4 sentences: what happened, tone, next step if any"}`;
-
-const SCORER_SYSTEM = `You coach outbound sales reps selling websites to local service businesses.
-Return JSON only:
-{
-  "rep_score": 1-10,
-  "objections": ["short phrases the prospect raised"],
-  "recommendations": "2-3 bullet-style sentences to improve the next call",
-  "opener_suggestion": "one sentence opener for tomorrow in this niche"
-}`;
-
-const PLAYBOOK_SYSTEM = `Extract one reusable counter from a successful website sales call.
-Return JSON only:
-{
-  "worth_saving": true|false,
-  "objection_pattern": "short phrase prospect said",
-  "winning_response": "what the rep said that worked (max 2 sentences)"
-}
-Only worth_saving true if outcome was Interested/Closed and a clear objection/response pair exists.`;
 
 export async function runPostCallSwarm(sessionId: string) {
   const stack = getCoachStackConfig();
@@ -65,16 +45,17 @@ export async function runPostCallSwarm(sessionId: string) {
       `Outcome: ${outcome}`,
       `Duration: ${session.duration_seconds ?? 0}s`,
       `Source: ${session.call_source}`,
+      `Rep: ${session.rep_name ?? "unknown"}`,
       "",
       "Transcript:",
       transcript.slice(-6000),
     ].join("\n");
 
     const [summaryRaw, scoreRaw, playbookRaw] = await Promise.all([
-      geminiText(model, SUMMARIZER_SYSTEM, context),
-      geminiText(model, SCORER_SYSTEM, context),
+      geminiText(model, buildPostCallSystemPrompt("summarize"), context),
+      geminiText(model, buildPostCallSystemPrompt("score"), context),
       outcome === "Interested/Closed"
-        ? geminiText(model, PLAYBOOK_SYSTEM, context)
+        ? geminiText(model, buildPostCallSystemPrompt("playbook"), context)
         : Promise.resolve(""),
     ]);
 

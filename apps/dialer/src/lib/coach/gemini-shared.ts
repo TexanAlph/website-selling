@@ -24,6 +24,23 @@ export async function geminiText(
   return result.response.text()?.trim() ?? "";
 }
 
+export async function* geminiTextStream(
+  modelName: string,
+  system: string,
+  user: string,
+): AsyncGenerator<string> {
+  const model = getGeminiModel(modelName);
+  const result = await model.generateContentStream([
+    { text: system },
+    { text: user },
+  ]);
+
+  for await (const chunk of result.stream) {
+    const text = chunk.text();
+    if (text) yield text;
+  }
+}
+
 export function parseJsonBlock<T>(raw: string): T | null {
   const trimmed = raw.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);

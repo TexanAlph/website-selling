@@ -1,9 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import type { LeadStatus } from "@/lib/leads";
-import { finalizeCallSession } from "@/lib/calls/sessions";
+import { finalizeCallSession, getSessionRecap } from "@/lib/calls/sessions";
 import { runPostCallSwarm } from "@/lib/coach/post-call";
+import { getSessionUser } from "@/lib/dialer-session";
+
 export const maxDuration = 60;
+
+export async function GET(
+  _request: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  if (!(await getSessionUser())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { id } = await context.params;
+    const recap = await getSessionRecap(id);
+    if (!recap) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+    return NextResponse.json({ recap });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Failed" },
+      { status: 500 },
+    );
+  }
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -24,30 +49,35 @@ export async function PATCH(
       endReason,
     });
 
-    if (
+    const shouldAnalyze =
       !result.alreadyEnded &&
-      result.transcriptFull &&
-      process.env.GEMINI_API_KEY?.trim()
-    ) {
+      Boolean(result.transcriptFull) &&
+      Boolean(process.env.GEMINI_API_KEY?.trim());
+
+    const alreadyProcessing =
+      result.alreadyEnded &&
+      result.recap?.analysisStatus === "processing";
+
+    if (shouldAnalyze && !alreadyProcessing) {
       after(async () => {
         try {
           await runPostCallSwarm(sessionId);
         } catch {
-          /* logged on session row as failed */
+          /* analysis_status set to failed on session */
         }
       });
-    } else if (!result.alreadyEnded && !result.transcriptFull) {
-      /* skipped — no transcript */
     }
+
+    const recap =
+      result.recap ??
+      (shouldAnalyze ? null : await getSessionRecap(sessionId));
 
     return NextResponse.json({
       ok: true,
-      ...result,
-      analysisQueued: Boolean(
-        !result.alreadyEnded &&
-          result.transcriptFull &&
-          process.env.GEMINI_API_KEY?.trim(),
-      ),
+      alreadyEnded: result.alreadyEnded,
+      durationSeconds: "durationSeconds" in result ? result.durationSeconds : null,
+      analysisQueued: shouldAnalyze,
+      recap,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Finalize failed";

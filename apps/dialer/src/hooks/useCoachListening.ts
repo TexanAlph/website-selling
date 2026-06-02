@@ -2,14 +2,24 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SttProvider } from "@/lib/coach/types";
+import { hasObjectionCue } from "@/lib/coach/objection-cues";
 
 type CoachStack = {
   stt: SttProvider;
   labels: { stt: string; llm: string };
 };
 
-const COACH_DEBOUNCE_MS = 4000;
-const CHUNK_MS = 3500;
+const SPEECH_PAUSE_MS = 500;
+const SPEECH_PAUSE_OBJECTION_MS = 350;
+const COACH_MIN_GAP_MS = 900;
+const COACH_MIN_GAP_OBJECTION_MS = 400;
+const DEEPGRAM_CHUNK_MS = 2000;
+
+export type LabeledLine = {
+  speaker: "prospect" | "rep" | "mixed";
+  text: string;
+  interim?: boolean;
+};
 
 export function useCoachListening(
   sessionId: string | null,
@@ -17,8 +27,17 @@ export function useCoachListening(
   active: boolean,
 ) {
   const [stack, setStack] = useState<CoachStack | null>(null);
+  const [listening, setListening] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [isInterim, setIsInterim] = useState(false);
+  const [sayNow, setSayNow] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const [labeledLines, setLabeledLines] = useState<LabeledLine[]>([]);
+
   const lastCoachAt = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const warmedRef = useRef(false);
 
   useEffect(() => {
     void fetch("/api/coach/config")
@@ -37,44 +56,178 @@ export function useCoachListening(
       });
   }, []);
 
-  const sendToCoach = useCallback(
-    async (transcript: string) => {
+  useEffect(() => {
+    if (!active || !sessionId) {
+      setListening(false);
+      setLiveTranscript("");
+      setSayNow("");
+      setLabeledLines([]);
+      warmedRef.current = false;
+      return;
+    }
+    setListening(true);
+    if (!warmedRef.current) {
+      warmedRef.current = true;
+      void fetch("/api/coach/warmup", { method: "POST" });
+    }
+  }, [active, sessionId]);
+
+  const streamToCoach = useCallback(
+    async (transcript: string, objection: boolean) => {
       if (!sessionId || !transcript.trim()) return;
+
+      const minGap = objection ? COACH_MIN_GAP_OBJECTION_MS : COACH_MIN_GAP_MS;
       const now = Date.now();
-      if (now - lastCoachAt.current < COACH_DEBOUNCE_MS) return;
+      if (now - lastCoachAt.current < minGap) return;
       lastCoachAt.current = now;
 
-      await fetch("/api/coach", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId,
-          leadId,
-          transcript: transcript.slice(-800),
-        }),
-      });
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
+
+      setStreaming(true);
+      setSayNow("");
+
+      try {
+        const res = await fetch("/api/coach/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            leadId,
+            transcript: transcript.slice(-800),
+          }),
+          signal: ac.signal,
+        });
+
+        if (!res.ok || !res.body) {
+          setStreaming(false);
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() ?? "";
+
+          for (const part of parts) {
+            const line = part.trim();
+            if (!line.startsWith("data:")) continue;
+            const payload = line.slice(5).trim();
+            if (payload === "[DONE]") continue;
+            try {
+              const event = JSON.parse(payload) as {
+                type: string;
+                text?: string;
+                content?: string;
+              };
+              if (event.type === "token" && event.text) {
+                setSayNow((prev) => prev + event.text);
+              }
+              if (event.type === "done" && event.content) {
+                const match = event.content.match(/^\[[^\]]+\]\s*([\s\S]*)$/);
+                setSayNow(match?.[1]?.trim() ?? event.content);
+              }
+            } catch {
+              /* ignore parse errors */
+            }
+          }
+        }
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
+      } finally {
+        setStreaming(false);
+      }
     },
     [sessionId, leadId],
+  );
+
+  const scheduleCoach = useCallback(
+    (snippet: string) => {
+      const objection = hasObjectionCue(snippet);
+      const pauseMs = objection ? SPEECH_PAUSE_OBJECTION_MS : SPEECH_PAUSE_MS;
+
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        void streamToCoach(snippet, objection);
+      }, pauseMs);
+    },
+    [streamToCoach],
   );
 
   const sendAudioChunk = useCallback(
     async (blob: Blob) => {
       if (!sessionId || blob.size < 1000) return;
       const now = Date.now();
-      if (now - lastCoachAt.current < COACH_DEBOUNCE_MS) return;
+      if (now - lastCoachAt.current < COACH_MIN_GAP_MS) return;
       lastCoachAt.current = now;
+
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
 
       const form = new FormData();
       form.append("sessionId", sessionId);
       if (leadId) form.append("leadId", leadId);
       form.append("audio", blob, "chunk.webm");
 
-      await fetch("/api/coach", { method: "POST", body: form });
+      setStreaming(true);
+      try {
+        const res = await fetch("/api/coach/stream", {
+          method: "POST",
+          body: form,
+          signal: ac.signal,
+        });
+        if (!res.ok || !res.body) return;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let acc = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() ?? "";
+          for (const part of parts) {
+            const line = part.trim();
+            if (!line.startsWith("data:")) continue;
+            const payload = line.slice(5).trim();
+            if (payload === "[DONE]") continue;
+            try {
+              const event = JSON.parse(payload) as {
+                type: string;
+                text?: string;
+                content?: string;
+              };
+              if (event.type === "token" && event.text) {
+                acc += event.text;
+                setSayNow(acc);
+              }
+              if (event.type === "done" && event.content) {
+                const match = event.content.match(/^\[[^\]]+\]\s*([\s\S]*)$/);
+                setSayNow(match?.[1]?.trim() ?? event.content);
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        setStreaming(false);
+      }
     },
     [sessionId, leadId],
   );
 
-  // Deepgram path: mic chunks via MediaRecorder (works on Vercel; no WebSocket server)
   useEffect(() => {
     if (!active || !sessionId || stack?.stt !== "deepgram") return;
 
@@ -84,43 +237,65 @@ export function useCoachListening(
     async function start() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-          },
+          audio: { echoCancellation: true, noiseSuppression: true },
         });
-
         const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
           ? "audio/webm;codecs=opus"
           : MediaRecorder.isTypeSupported("audio/mp4")
             ? "audio/mp4"
             : "";
-
         recorder = mime
           ? new MediaRecorder(stream, { mimeType: mime })
           : new MediaRecorder(stream);
-
         recorder.ondataavailable = (e) => {
           if (e.data.size > 0) void sendAudioChunk(e.data);
         };
-
-        recorder.start(CHUNK_MS);
+        recorder.start(DEEPGRAM_CHUNK_MS);
       } catch {
-        /* mic denied — coach stays on webspeech fallback in UI */
+        /* mic denied */
       }
     }
 
     void start();
-
     return () => {
       if (recorder?.state !== "inactive") recorder?.stop();
       stream?.getTracks().forEach((t) => t.stop());
     };
   }, [active, sessionId, stack?.stt, sendAudioChunk]);
 
-  // Web Speech path: $0, built into Safari/Chrome
+  useEffect(() => {
+    if (!active || !sessionId) return;
+
+    const poll = window.setInterval(async () => {
+      try {
+        const res = await fetch(
+          `/api/calls/media-lines?sessionId=${encodeURIComponent(sessionId)}`,
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as { lines?: LabeledLine[] };
+        if (json.lines?.length) {
+          setLabeledLines(json.lines);
+          const prospectText = json.lines
+            .filter((l) => l.speaker === "prospect")
+            .map((l) => l.text)
+            .join(" ");
+          if (prospectText.trim()) {
+            setLiveTranscript(prospectText);
+            setIsInterim(false);
+            scheduleCoach(prospectText);
+          }
+        }
+      } catch {
+        /* media stream optional */
+      }
+    }, 1500);
+
+    return () => clearInterval(poll);
+  }, [active, sessionId, scheduleCoach]);
+
   useEffect(() => {
     if (!active || !sessionId || stack?.stt !== "webspeech") return;
+    if (labeledLines.length > 0) return;
 
     const Win = window as Window & {
       webkitSpeechRecognition?: new () => SpeechRecognitionLike;
@@ -147,10 +322,12 @@ export function useCoachListening(
       const snippet = (buffer + interim).trim();
       if (!snippet) return;
 
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        void sendToCoach(snippet);
-      }, 1500);
+      setLiveTranscript(snippet);
+      setIsInterim(Boolean(interim.trim()));
+      setLabeledLines([
+        { speaker: "mixed", text: snippet, interim: Boolean(interim.trim()) },
+      ]);
+      scheduleCoach(snippet);
     };
 
     recognition.onerror = () => {};
@@ -158,11 +335,21 @@ export function useCoachListening(
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      abortRef.current?.abort();
       recognition.stop();
     };
-  }, [active, sessionId, stack?.stt, sendToCoach]);
+  }, [active, sessionId, stack?.stt, scheduleCoach, labeledLines.length]);
 
-  return stack;
+  return {
+    stack,
+    listening: active && listening,
+    liveTranscript,
+    isInterim,
+    sayNow,
+    streaming,
+    labeledLines,
+    usesMediaLegs: labeledLines.some((l) => l.speaker !== "mixed"),
+  };
 }
 
 type SpeechRecognitionEventLike = {
