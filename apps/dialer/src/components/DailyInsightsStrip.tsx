@@ -29,7 +29,7 @@ export function DailyInsightsStrip({
   const scraper = data?.lastScraperRun;
 
   return (
-    <section className="insights-strip glass">
+    <section className="insights-strip">
       {queueError && onRetryQueue ? (
         <div className="insights-strip-error">
           <p>{queueError}</p>
@@ -50,31 +50,27 @@ export function DailyInsightsStrip({
         </>
       ) : (
         <p className="insights-strip-muted">
-          Daily insights appear after the nightly analysis job runs.
+          Daily tip shows up after tonight&apos;s analysis run.
         </p>
       )}
 
       <p className="insights-strip-scraper">
-        Scraper:{" "}
         {scraper ? (
-          <>
-            <span
-              className={
-                scraper.status === "ok"
-                  ? "insights-status-ok"
-                  : scraper.status === "error"
-                    ? "insights-status-err"
-                    : ""
-              }
-            >
-              {scraper.status}
-            </span>
-            {scraper.status === "ok"
-              ? ` · +${scraper.leads_upserted} leads · ${formatScraperAge(scraper.finished_at ?? scraper.started_at)}`
-              : ` · ${formatScraperAge(scraper.started_at)}`}
-          </>
+          scraper.status === "ok" ? (
+            <>
+              Last refill{" "}
+              <span className="insights-status-ok">
+                +{scraper.leads_upserted} leads
+              </span>{" "}
+              · {formatScraperAge(scraper.finished_at ?? scraper.started_at)}
+            </>
+          ) : scraper.status === "error" ? (
+            <span className="insights-status-err">Scraper issue — check Mini</span>
+          ) : (
+            <>Scraper running…</>
+          )
         ) : (
-          "no runs logged yet — start storage API + scraper on Mac Mini"
+          <span className="insights-strip-muted">No scraper runs logged yet</span>
         )}
       </p>
     </section>

@@ -6,13 +6,24 @@ type Props = {
   recap: SessionRecap | null;
   loading: boolean;
   onDismiss: () => void;
+  embedded?: boolean;
 };
 
-export function PostCallRecap({ recap, loading, onDismiss }: Props) {
+export function PostCallRecap({
+  recap,
+  loading,
+  onDismiss,
+  embedded = false,
+}: Props) {
   if (!loading && !recap) return null;
 
   return (
-    <section className="post-call-recap glass" aria-live="polite">
+    <section
+      className={
+        embedded ? "post-call-recap post-call-recap--embedded" : "post-call-recap glass"
+      }
+      aria-live="polite"
+    >
       <div className="post-call-recap-header">
         <h3 className="post-call-recap-title">Call recap</h3>
         <button

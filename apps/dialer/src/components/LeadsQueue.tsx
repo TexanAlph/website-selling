@@ -7,11 +7,9 @@ import type { SessionRecap } from "@/lib/calls/types";
 import type { InsightsPayload } from "@/hooks/useInsights";
 import { LeadCard } from "./LeadCard";
 import { CoachPanel } from "./CoachPanel";
-import { PostCallRecap } from "./PostCallRecap";
-import { DailyInsightsStrip } from "./DailyInsightsStrip";
-import { ScraperStatusStrip } from "./ScraperStatusStrip";
+import { PostCallWrapUp } from "./PostCallWrapUp";
+import { LeadsMorePanel } from "./LeadsMorePanel";
 import { MAX_NEW_PER_REP, queueCountDisplay } from "@/lib/rep-queue";
-import { RecentLeadsPanel } from "./RecentLeadsPanel";
 
 type Props = {
   lead: Lead | null;
@@ -67,6 +65,9 @@ export function LeadsQueue({
   const canCall = Boolean(lead) && (testMode || deviceReady) && !loading;
   const needsOutcome =
     Boolean(lead) && lead?.status === "Calling" && !calling && !testMode;
+  const wrapUp =
+    !calling &&
+    (needsOutcome || recapLoading || Boolean(recap?.summary || recap?.repScore));
 
   const atCap =
     !testMode && queueCount !== null && queueCount >= MAX_NEW_PER_REP;
@@ -76,76 +77,26 @@ export function LeadsQueue({
   });
 
   const nicheLabel = lead?.niche?.trim() || null;
+  const leadKey = lead?.id ?? "empty";
 
-  return (
-    <div className="leads-shell">
-      <div className="leads-top">
-        <DailyInsightsStrip
-          data={insights}
-          loading={insightsLoading}
-          queueError={error}
-          onRetryQueue={onRetryQueue}
-        />
-
-        <p className="leads-queue-count" aria-live="polite">
-          <span className="leads-queue-count-value">{countLabel}</span>
-        </p>
-        <ScraperStatusStrip />
-        {atCap && !calling ? (
-          <p className="text-[11px] text-[var(--text-secondary)]">
-            Queue full — Mac Mini will skip Google until you clear outcomes.
-          </p>
-        ) : null}
-        {!lead && !loading && queueCount === 0 ? (
-          <p className="text-[11px] text-[var(--text-secondary)]">
-            No leads in your queue. Scraper refills when below {MAX_NEW_PER_REP}.
-          </p>
-        ) : null}
-
-        {needsOutcome ? (
-          <p className="wrap-up-banner" role="status">
-            Call ended — tap Wrong, Not interested, or Interested to save and
-            load the next lead. AI recap is below (not a substitute for
-            outcome).
-          </p>
-        ) : null}
-
-        {!calling && (recap || recapLoading) ? (
-          <PostCallRecap
-            recap={recap}
-            loading={recapLoading}
-            onDismiss={onDismissRecap}
-          />
-        ) : null}
-
-        {calling ? (
+  if (calling) {
+    return (
+      <div className="leads-shell leads-shell--on-call">
+        <div className="leads-top leads-top--minimal">
           <LeadCard
             lead={lead}
             loading={loading && !lead}
             calling
             variant="strip"
           />
-        ) : (
-          <LeadCard lead={lead} loading={loading && !lead} variant="compact" />
-        )}
-
-        <div className="leads-actions">
-          <button
-            type="button"
-            disabled={!canCall && !calling}
-            onClick={onCallLead}
-            className={`btn-primary leads-call-btn ${calling ? "btn-primary--end" : ""}`}
-          >
-            {calling
-              ? "End call"
-              : testMode
-                ? "Call this lead"
-                : deviceReady
-                  ? "Call this lead"
-                  : "Connecting phone…"}
-          </button>
-
-          {calling ? (
+          <div className="leads-actions leads-actions--compact">
+            <button
+              type="button"
+              onClick={onCallLead}
+              className="btn-primary leads-call-btn btn-primary--end"
+            >
+              End call
+            </button>
             <CallStatusBar
               callPhase={callPhase}
               callStatusLabel={callStatusLabel}
@@ -154,7 +105,75 @@ export function LeadsQueue({
               testMode={testMode}
               onToggleSpeaker={onToggleSpeaker}
             />
-          ) : null}
+          </div>
+        </div>
+        <div className="leads-main">
+          <div className="leads-coach-pane">
+            <CoachPanel
+              sessionId={sessionId}
+              leadId={lead?.id ?? null}
+              nicheLabel={nicheLabel}
+              active={calling}
+              testMode={testMode}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (wrapUp) {
+    return (
+      <div className="leads-shell leads-shell--wrap-up">
+        <p className="leads-queue-hero" aria-live="polite">
+          {countLabel}
+        </p>
+        <PostCallWrapUp
+          lead={lead}
+          recap={recap}
+          recapLoading={recapLoading}
+          loading={loading}
+          onDismissRecap={onDismissRecap}
+          onOutcome={onOutcome}
+        />
+        {error ? <p className="alert-error leads-error">{error}</p> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="leads-shell">
+      <div className="leads-top">
+        <p className="leads-queue-hero" aria-live="polite">
+          {countLabel}
+        </p>
+
+        {atCap ? (
+          <p className="leads-hint">Queue full — scraper pauses until you log outcomes.</p>
+        ) : null}
+        {!lead && !loading && queueCount === 0 && !testMode ? (
+          <p className="leads-hint">
+            No leads right now — scraper refills when you&apos;re below {MAX_NEW_PER_REP}.
+          </p>
+        ) : null}
+
+        <div key={leadKey} className="lead-card-slot animate-lead-in">
+          <LeadCard lead={lead} loading={loading && !lead} variant="compact" />
+        </div>
+
+        <div className="leads-actions">
+          <button
+            type="button"
+            disabled={!canCall}
+            onClick={onCallLead}
+            className="btn-primary leads-call-btn"
+          >
+            {testMode
+              ? "Call this lead"
+              : deviceReady
+                ? "Call this lead"
+                : "Connecting phone…"}
+          </button>
 
           <div className="leads-outcomes">
             <button
@@ -187,29 +206,17 @@ export function LeadsQueue({
           </div>
         </div>
 
-        {error && !insights ? (
-          <p className="alert-error leads-error">{error}</p>
-        ) : null}
+        {error ? <p className="alert-error leads-error">{error}</p> : null}
 
-        <RecentLeadsPanel
+        <LeadsMorePanel
           testMode={testMode}
-          onSelectLead={onSelectRecentLead}
+          insights={insights}
+          insightsLoading={insightsLoading}
+          queueError={error}
+          onRetryQueue={onRetryQueue}
+          onSelectRecentLead={onSelectRecentLead}
         />
       </div>
-
-      {calling && (
-        <div className="leads-main">
-          <div className="leads-coach-pane">
-            <CoachPanel
-              sessionId={sessionId}
-              leadId={lead?.id ?? null}
-              nicheLabel={nicheLabel}
-              active={calling}
-              testMode={testMode}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

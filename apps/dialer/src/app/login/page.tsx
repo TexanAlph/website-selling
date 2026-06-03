@@ -43,9 +43,9 @@ export default function LoginPage() {
 
   return (
     <main className="auth-page safe-x safe-bottom sm:mx-auto sm:max-w-md">
-      <div className="mb-10 text-center">
+      <div className="mb-10 text-center animate-fade-in">
         <div
-          className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+          className="auth-logo mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface)] shadow-[0_12px_40px_rgba(52,211,153,0.15)]"
           aria-hidden
         >
           <svg
@@ -69,7 +69,7 @@ export default function LoginPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="glass rounded-[var(--radius-xl)] p-6 shadow-[0_16px_48px_rgba(0,0,0,0.35)]"
+        className="glass auth-form rounded-[var(--radius-xl)] p-6 shadow-[0_16px_48px_rgba(0,0,0,0.35)] animate-fade-in"
         autoComplete="off"
       >
         {/* Absorb iOS Keychain autofill so real fields stay empty on load */}

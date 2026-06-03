@@ -35,7 +35,6 @@ export function CoachPanel({
   const feedRef = useRef<HTMLDivElement>(null);
 
   const {
-    stack,
     listening,
     liveTranscript,
     isInterim,
@@ -154,12 +153,7 @@ export function CoachPanel({
           {active && listening ? (
             <span className="coach-listening-pill" aria-live="polite">
               <span className="coach-listening-dot" />
-              Listening
-            </span>
-          ) : null}
-          {stack ? (
-            <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[10px] font-medium text-[var(--text-tertiary)]">
-              {stack.labels.stt}
+              Live
             </span>
           ) : null}
         </div>
@@ -173,8 +167,7 @@ export function CoachPanel({
             aria-live="polite"
           >
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
-              On the call
-              {usesMediaLegs ? " · prospect / you" : " · mic"}
+              {usesMediaLegs ? "Prospect & you" : "Live audio"}
             </p>
             {labeledLines.length > 0 ? (
               <ul className="mt-2 space-y-2">

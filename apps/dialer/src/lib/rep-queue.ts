@@ -15,10 +15,10 @@ export function queueCountDisplay(
 ): string {
   if (opts.testMode) {
     if (opts.storageConfigured === false) {
-      return "Queue unavailable — check STORAGE_API on Vercel";
+      return "Queue offline";
     }
-    return "Demo mode — not connected to Mac Mini";
+    return "Queue · preview";
   }
-  if (count === null) return "Your queue: …";
-  return `Your queue: ${queueLabel(count)}`;
+  if (count === null) return "Queue …";
+  return `${queueLabel(count)} new`;
 }

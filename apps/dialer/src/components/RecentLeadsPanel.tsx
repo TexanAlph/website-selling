@@ -6,10 +6,15 @@ import type { Lead } from "@/lib/leads";
 type Props = {
   testMode: boolean;
   onSelectLead: (lead: Lead) => void;
+  embedded?: boolean;
 };
 
-export function RecentLeadsPanel({ testMode, onSelectLead }: Props) {
-  const [open, setOpen] = useState(false);
+export function RecentLeadsPanel({
+  testMode,
+  onSelectLead,
+  embedded = false,
+}: Props) {
+  const [open, setOpen] = useState(embedded);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +22,7 @@ export function RecentLeadsPanel({ testMode, onSelectLead }: Props) {
   const load = useCallback(async () => {
     if (testMode) {
       setLeads([]);
-      setError("Connect Mac Mini storage to see recent leads");
+      setError(null);
       return;
     }
     setLoading(true);
@@ -35,29 +40,14 @@ export function RecentLeadsPanel({ testMode, onSelectLead }: Props) {
   }, [testMode]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!embedded && !open) return;
     void load();
-  }, [open, load]);
+  }, [embedded, open, load]);
 
-  return (
-    <section className="recent-leads glass">
-      <button
-        type="button"
-        className="recent-leads-toggle"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        <span>Recent &amp; callbacks</span>
-        <span className="recent-leads-chevron" aria-hidden>
-          {open ? "▾" : "▸"}
-        </span>
-      </button>
-
-      {open ? (
-        <div className="recent-leads-body">
+  const body = (
+    <div className="recent-leads-body">
           <p className="recent-leads-hint">
-            Leads you marked Interested, Not interested, or Wrong — tap to view
-            number and call again.
+            Tap a past lead to see their number and call again.
           </p>
           {loading ? (
             <p className="recent-leads-muted">Loading…</p>
@@ -83,7 +73,31 @@ export function RecentLeadsPanel({ testMode, onSelectLead }: Props) {
             ))}
           </ul>
         </div>
-      ) : null}
+  );
+
+  if (embedded) {
+    return (
+      <div className="recent-leads recent-leads--embedded">
+        <p className="recent-leads-embedded-title">Recent leads</p>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <section className="recent-leads glass">
+      <button
+        type="button"
+        className="recent-leads-toggle"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span>Recent &amp; callbacks</span>
+        <span className="recent-leads-chevron" aria-hidden>
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+      {open ? body : null}
     </section>
   );
 }
