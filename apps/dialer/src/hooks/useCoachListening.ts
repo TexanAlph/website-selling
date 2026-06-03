@@ -7,6 +7,10 @@ import {
   buildCoachTranscriptFromLines,
   coachTranscriptFingerprint,
 } from "@/lib/coach/transcript-turn";
+import {
+  releaseSpeechRecognition,
+  stopMediaStream,
+} from "@/lib/coach/release-speech";
 
 type CoachStack = {
   stt: SttProvider;
@@ -42,6 +46,34 @@ export function useCoachListening(
   const abortRef = useRef<AbortController | null>(null);
   const warmedRef = useRef(false);
   const lastMediaSig = useRef("");
+  /** True only while a call session should keep mic / speech capture alive. */
+  const captureActiveRef = useRef(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  const stopCoachCapture = useCallback(() => {
+    captureActiveRef.current = false;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    releaseSpeechRecognition(recognitionRef.current);
+    recognitionRef.current = null;
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    mediaRecorderRef.current = null;
+    stopMediaStream(mediaStreamRef.current);
+    mediaStreamRef.current = null;
+  }, []);
 
   useEffect(() => {
     void fetch("/api/coach/config")
@@ -73,8 +105,10 @@ export function useCoachListening(
 
   useEffect(() => {
     if (!active || !sessionId) {
+      stopCoachCapture();
       setListening(false);
       setSayNow("");
+      setStreaming(false);
       setCoachError(null);
       setLabeledLines([]);
       warmedRef.current = false;
@@ -83,8 +117,9 @@ export function useCoachListening(
       bootstrapDoneAt.current = 0;
       return;
     }
+    captureActiveRef.current = true;
     setListening(true);
-  }, [active, sessionId]);
+  }, [active, sessionId, stopCoachCapture]);
 
   const streamToCoach = useCallback(
     async (
@@ -297,10 +332,16 @@ export function useCoachListening(
     let stream: MediaStream | null = null;
 
     async function start() {
+      if (!captureActiveRef.current) return;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true },
         });
+        if (!captureActiveRef.current) {
+          stopMediaStream(stream);
+          return;
+        }
+        mediaStreamRef.current = stream;
         const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
           ? "audio/webm;codecs=opus"
           : MediaRecorder.isTypeSupported("audio/mp4")
@@ -309,6 +350,7 @@ export function useCoachListening(
         recorder = mime
           ? new MediaRecorder(stream, { mimeType: mime })
           : new MediaRecorder(stream);
+        mediaRecorderRef.current = recorder;
         recorder.ondataavailable = (e) => {
           if (e.data.size > 0) void sendAudioChunk(e.data);
         };
@@ -320,10 +362,9 @@ export function useCoachListening(
 
     void start();
     return () => {
-      if (recorder?.state !== "inactive") recorder?.stop();
-      stream?.getTracks().forEach((t) => t.stop());
+      stopCoachCapture();
     };
-  }, [active, sessionId, stack?.stt, sendAudioChunk]);
+  }, [active, sessionId, stack?.stt, sendAudioChunk, stopCoachCapture]);
 
   useEffect(() => {
     if (!active || !sessionId || !stack?.mediaStreamsEnabled) return;
@@ -381,7 +422,9 @@ export function useCoachListening(
       return;
     }
 
+    captureActiveRef.current = true;
     const recognition = new SR();
+    recognitionRef.current = recognition;
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
@@ -389,6 +432,7 @@ export function useCoachListening(
     let finalBuffer = "";
 
     recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      if (!captureActiveRef.current) return;
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const t = event.results[i][0].transcript;
@@ -407,27 +451,29 @@ export function useCoachListening(
     };
 
     recognition.onerror = () => {
+      if (!captureActiveRef.current) return;
       if (!stack.mediaStreamsEnabled) {
         setCoachError("Could not hear call — check mic permission");
       }
     };
 
     recognition.onend = () => {
-      if (active && sessionId) {
-        try {
-          recognition.start();
-        } catch {
-          /* restart when iOS stops recognition mid-call */
-        }
+      if (!captureActiveRef.current) return;
+      try {
+        recognition.start();
+      } catch {
+        /* iOS may stop recognition mid-call — restart only while captureActive */
       }
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      setCoachError("Could not start speech recognition");
+    }
 
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      abortRef.current?.abort();
-      recognition.stop();
+      stopCoachCapture();
     };
   }, [
     active,
@@ -436,6 +482,7 @@ export function useCoachListening(
     stack?.mediaStreamsEnabled,
     scheduleCoach,
     labeledLines.length,
+    stopCoachCapture,
   ]);
 
   return {
@@ -465,4 +512,5 @@ type SpeechRecognitionLike = {
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
+  abort?: () => void;
 };

@@ -9,6 +9,7 @@ import {
   createTwilioDevice,
   detectSpeakerSupport,
   isTokenError,
+  releaseTwilioAudio,
   speakerHint,
 } from "@/lib/twilio-device";
 
@@ -218,11 +219,7 @@ export function usePhoneCall() {
       }
       activeCallRef.current = null;
 
-      try {
-        deviceRef.current?.disconnectAll();
-      } catch {
-        /* ignore */
-      }
+      await releaseTwilioAudio(deviceRef.current);
 
       setCalling(false);
       setCallPhase("idle");

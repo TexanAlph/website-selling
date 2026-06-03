@@ -57,3 +57,21 @@ export function createTwilioDevice(token: string): Device {
     closeProtection: true,
   });
 }
+
+/** Hang up and release WebRTC mic routes (helps iOS Safari after a call). */
+export async function releaseTwilioAudio(device: Device | null): Promise<void> {
+  if (!device) return;
+  try {
+    device.disconnectAll();
+  } catch {
+    /* ignore */
+  }
+  try {
+    const audio = device.audio as {
+      unsetInputDevice?: () => Promise<void>;
+    } | null;
+    await audio?.unsetInputDevice?.();
+  } catch {
+    /* ignore */
+  }
+}

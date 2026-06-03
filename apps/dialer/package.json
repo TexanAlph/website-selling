@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import tsx --test src/lib/calls/niche.test.ts src/lib/coach/call-stage.test.ts src/lib/coach/coach-display.test.ts src/lib/coach/transcript-turn.test.ts"
+    "test": "node --import tsx --test src/lib/calls/niche.test.ts src/lib/coach/call-stage.test.ts src/lib/coach/coach-display.test.ts src/lib/coach/transcript-turn.test.ts src/lib/coach/release-speech.test.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",
