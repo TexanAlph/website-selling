@@ -1,26 +1,29 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export function getGeminiModel(modelName?: string) {
+function getGeminiClient(
+  modelName?: string,
+  systemInstruction?: string,
+  maxOutputTokens = 160,
+) {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY not configured");
-  }
+  if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
   const name =
     modelName?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash";
-  const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel({ model: name });
+  return new GoogleGenerativeAI(apiKey).getGenerativeModel({
+    model: name,
+    ...(systemInstruction ? { systemInstruction } : {}),
+    generationConfig: { maxOutputTokens, temperature: 0.7 },
+  });
 }
 
 export async function geminiText(
   modelName: string,
   system: string,
   user: string,
+  maxOutputTokens = 600,
 ): Promise<string> {
-  const model = getGeminiModel(modelName);
-  const result = await model.generateContent([
-    { text: system },
-    { text: user },
-  ]);
+  const model = getGeminiClient(modelName, system, maxOutputTokens);
+  const result = await model.generateContent(user);
   return result.response.text()?.trim() ?? "";
 }
 
@@ -29,12 +32,8 @@ export async function* geminiTextStream(
   system: string,
   user: string,
 ): AsyncGenerator<string> {
-  const model = getGeminiModel(modelName);
-  const result = await model.generateContentStream([
-    { text: system },
-    { text: user },
-  ]);
-
+  const model = getGeminiClient(modelName, system);
+  const result = await model.generateContentStream(user);
   for await (const chunk of result.stream) {
     const text = chunk.text();
     if (text) yield text;
