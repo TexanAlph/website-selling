@@ -11,6 +11,7 @@ export async function createCallSession(input: {
   niche?: string | null;
   source: CallSource;
   repName?: string | null;
+  dialedPhone?: string | null;
 }) {
   const niche = normalizeNiche(input.niche);
   await storage.upsertCallSession({
@@ -18,6 +19,7 @@ export async function createCallSession(input: {
     lead_id: input.leadId ?? null,
     niche: niche === "all" ? null : niche,
     call_source: input.source,
+    dialed_phone: input.dialedPhone ?? null,
     rep_name: input.repName ?? null,
     started_at: new Date().toISOString(),
     analysis_status: "pending",

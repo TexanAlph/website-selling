@@ -4,7 +4,8 @@ export function isHistoryUnavailable(message: string): boolean {
   return (
     m === "not found" ||
     m.includes("404") ||
-    m.startsWith("storage api 404")
+    m.startsWith("storage api 404") ||
+    m.includes("call-sessions/recent")
   );
 }
 

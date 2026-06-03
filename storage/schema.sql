@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS call_sessions (
   lead_id           TEXT REFERENCES leads (id) ON DELETE SET NULL,
   niche             TEXT,
   call_source       TEXT NOT NULL,
+  dialed_phone      TEXT,
   rep_name          TEXT,
   started_at        TEXT NOT NULL,
   ended_at          TEXT,
@@ -55,6 +56,9 @@ CREATE TABLE IF NOT EXISTS call_sessions (
 CREATE INDEX IF NOT EXISTS call_sessions_pending_idx
   ON call_sessions (ended_at ASC)
   WHERE analysis_status = 'pending' AND ended_at IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS call_sessions_rep_ended_idx
+  ON call_sessions (rep_name, ended_at DESC);
 
 CREATE TABLE IF NOT EXISTS playbook_entries (
   id                 TEXT PRIMARY KEY,

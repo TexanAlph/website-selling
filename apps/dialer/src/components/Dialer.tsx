@@ -222,6 +222,7 @@ export function Dialer() {
           leadId: lead.id,
           niche: lead.niche,
           source: "queue",
+          dialedPhone: lead.phone,
         });
       },
       onDisconnect: async (endedId) => {
@@ -244,6 +245,7 @@ export function Dialer() {
         await apiCreateCallSession({
           sessionId,
           source: "keypad",
+          dialedPhone: e164,
         });
       },
       onDisconnect: async (endedId) => {

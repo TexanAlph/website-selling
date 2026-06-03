@@ -165,6 +165,7 @@ class SessionUpsert(BaseModel):
     lead_id: str | None = None
     niche: str | None = None
     call_source: str
+    dialed_phone: str | None = None
     rep_name: str | None = None
     started_at: str | None = None
     analysis_status: str = "pending"
@@ -174,6 +175,12 @@ class SessionUpsert(BaseModel):
 def session_upsert(body: SessionUpsert) -> dict[str, str]:
     db.upsert_call_session(body.model_dump())
     return {"ok": "true"}
+
+
+@app.get("/call-sessions/recent", dependencies=[Depends(require_auth)])
+def sessions_recent(rep: str, limit: int = 30) -> dict[str, Any]:
+    capped = max(1, min(limit, 50))
+    return {"calls": db.list_recent_outbound_calls(rep, capped)}
 
 
 @app.get("/call-sessions/pending-analysis", dependencies=[Depends(require_auth)])

@@ -19,7 +19,9 @@ Shows **“5 leads ready”** (not a “5/100” cap display). Secondary text on
 
 - Your Twilio number should POST to **`/api/twilio/incoming`** (voicemail when nobody answers in the browser).
 - Recordings attach via **`/api/twilio/recording`** (uses `STORAGE_API_SECRET` or `TWILIO_WEBHOOK_SECRET`).
-- The **History** tab reads **`/api/calls/missed`** → Mac Mini **`/inbound/missed`**.
+- The **History** tab shows **your outbound calls** (keypad + leads), **missed inbound**, and **past lead outcomes**.
+- Outbound list: **`/api/calls/outbound`** → Mac Mini **`/call-sessions/recent`** (requires storage API update + `dialed_phone` column).
+- Missed inbound: **`/api/calls/missed`** → **`/inbound/missed`**.
 - If the Mini API is old (404), the app shows **“No missed calls”** and a gray setup hint — not a red error.
 
 Restart **`storage/api_server.py`** on the Mac Mini after pulling repo changes that add inbound routes.

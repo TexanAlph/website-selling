@@ -8,6 +8,11 @@ import {
   isMissedUnread,
   missedCallLabel,
 } from "@/lib/calls/inbound";
+import type { OutboundCallRecord } from "@/lib/calls/outbound-history";
+import {
+  outboundCallLabel,
+  outboundCallPhone,
+} from "@/lib/calls/outbound-history";
 import { isHistoryUnavailable, readFetchError } from "@/lib/history-api";
 
 type Props = {
@@ -41,11 +46,13 @@ export function CallHistoryPanel({
   const page = variant === "page";
   const [open, setOpen] = useState(page);
   const [missed, setMissed] = useState<MissedCall[]>([]);
+  const [outbound, setOutbound] = useState<OutboundCallRecord[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
   const [missedUnavailable, setMissedUnavailable] = useState(false);
   const [missedError, setMissedError] = useState<string | null>(null);
   const [leadsError, setLeadsError] = useState<string | null>(null);
+  const [outboundError, setOutboundError] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -59,9 +66,11 @@ export function CallHistoryPanel({
   const load = useCallback(async () => {
     if (testMode) {
       setMissed([]);
+      setOutbound([]);
       setLeads([]);
       setMissedUnavailable(false);
       setMissedError(null);
+      setOutboundError(null);
       setLeadsError(null);
       setPlaybackError(null);
       return;
@@ -70,7 +79,22 @@ export function CallHistoryPanel({
     setMissedUnavailable(false);
     setMissedError(null);
     setLeadsError(null);
+    setOutboundError(null);
     setPlaybackError(null);
+
+    const outboundRes = await fetch("/api/calls/outbound");
+    if (outboundRes.ok) {
+      const outboundJson = (await outboundRes.json()) as {
+        calls?: OutboundCallRecord[];
+      };
+      setOutbound(outboundJson.calls ?? []);
+    } else {
+      const msg = await readFetchError(outboundRes);
+      setOutbound([]);
+      if (!isHistoryUnavailable(msg)) {
+        setOutboundError(msg);
+      }
+    }
 
     const missedRes = await fetch("/api/calls/missed");
     if (missedRes.ok) {
@@ -146,6 +170,12 @@ export function CallHistoryPanel({
     onCallBack(call.from_phone);
   }
 
+  function handleOutboundCallBack(call: OutboundCallRecord, e: React.MouseEvent) {
+    e.stopPropagation();
+    const phone = outboundCallPhone(call);
+    if (phone) onCallBack(phone);
+  }
+
   const body = (
     <div className="call-history-body animate-fade-in">
       {loading ? <p className="call-history-muted">Loading…</p> : null}
@@ -155,6 +185,63 @@ export function CallHistoryPanel({
       {leadsError ? (
         <p className="call-history-warn">{leadsError}</p>
       ) : null}
+      {outboundError ? (
+        <p className="call-history-warn">{outboundError}</p>
+      ) : null}
+
+      <div className="call-history-section">
+        <p className="call-history-section-title">Your calls</p>
+        {!loading && outbound.length === 0 && !outboundError ? (
+          <p className="call-history-muted">
+            No completed outbound calls yet. Keypad and lead calls show here
+            after you hang up.
+          </p>
+        ) : null}
+        {outbound.length > 0 ? (
+          <ul className="call-history-list">
+            {outbound.map((call) => {
+              const phone = outboundCallPhone(call);
+              const sourceLabel =
+                call.callSource === "keypad" ? "Keypad" : "Lead";
+              return (
+                <li key={call.id} className="call-history-row">
+                  <div className="call-history-item">
+                    <div className="call-history-item__main">
+                      <span className="call-history-item__name">
+                        {outboundCallLabel(call)}
+                      </span>
+                      <span className="call-history-item__meta">
+                        {sourceLabel}
+                        {phone ? ` · ${phone}` : ""}
+                        {call.durationSeconds
+                          ? ` · ${call.durationSeconds}s`
+                          : ""}
+                        {call.outcomeStatus
+                          ? ` · ${call.outcomeStatus.replace("/", " · ")}`
+                          : ""}
+                      </span>
+                      <span className="call-history-item__when">
+                        {formatWhen(call.endedAt)}
+                      </span>
+                    </div>
+                  </div>
+                  {phone ? (
+                    <div className="call-history-row-actions">
+                      <button
+                        type="button"
+                        className="call-history-action call-history-action--call"
+                        onClick={(e) => handleOutboundCallBack(call, e)}
+                      >
+                        Call again
+                      </button>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </div>
 
       <div className="call-history-section">
         <p className="call-history-section-title">Missed calls</p>

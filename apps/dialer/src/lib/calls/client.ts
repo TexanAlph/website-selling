@@ -7,6 +7,7 @@ export async function apiCreateCallSession(input: {
   leadId?: string | null;
   niche?: string | null;
   source: CallSource;
+  dialedPhone?: string | null;
 }) {
   const res = await fetch("/api/calls/session", {
     method: "POST",

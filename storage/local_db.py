@@ -39,9 +39,16 @@ def init_db(conn: sqlite3.Connection | None = None) -> None:
     own = conn is None
     conn = conn or connect()
     conn.executescript(SCHEMA_PATH.read_text())
+    _migrate_call_sessions(conn)
     conn.commit()
     if own:
         conn.close()
+
+
+def _migrate_call_sessions(conn: sqlite3.Connection) -> None:
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(call_sessions)")}
+    if "dialed_phone" not in cols:
+        conn.execute("ALTER TABLE call_sessions ADD COLUMN dialed_phone TEXT")
 
 
 def row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
@@ -216,6 +223,38 @@ def get_lead(lead_id: str) -> dict[str, Any] | None:
         return row_to_dict(row)
 
 
+def list_recent_outbound_calls(rep: str, limit: int = 30) -> list[dict[str, Any]]:
+    """Ended outbound sessions (keypad + queue) for History tab."""
+    limit = max(1, min(int(limit), 50))
+    rep_norm = normalize_rep(rep)
+    with connect() as conn:
+        init_db(conn)
+        rows = conn.execute(
+            """
+            SELECT
+              cs.id,
+              cs.lead_id,
+              cs.call_source,
+              cs.dialed_phone,
+              cs.rep_name,
+              cs.started_at,
+              cs.ended_at,
+              cs.outcome_status,
+              cs.duration_seconds,
+              l.business_name AS lead_business_name,
+              l.phone AS lead_phone
+            FROM call_sessions cs
+            LEFT JOIN leads l ON l.id = cs.lead_id
+            WHERE cs.ended_at IS NOT NULL
+              AND (cs.rep_name = ? OR cs.rep_name IS NULL)
+            ORDER BY cs.ended_at DESC
+            LIMIT ?
+            """,
+            (rep_norm, limit),
+        ).fetchall()
+        return [row_to_dict(r) for r in rows if r]
+
+
 def list_recent_leads(rep: str, limit: int = 25) -> list[dict[str, Any]]:
     """Leads with a logged outcome — for callbacks / looking up numbers."""
     limit = max(1, min(int(limit), 50))
@@ -353,6 +392,7 @@ def upsert_call_session(payload: dict[str, Any]) -> None:
                 "lead_id",
                 "niche",
                 "call_source",
+                "dialed_phone",
                 "rep_name",
                 "started_at",
                 "analysis_status",
@@ -370,15 +410,16 @@ def upsert_call_session(payload: dict[str, Any]) -> None:
             conn.execute(
                 """
                 INSERT INTO call_sessions (
-                  id, lead_id, niche, call_source, rep_name, started_at,
-                  analysis_status, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  id, lead_id, niche, call_source, dialed_phone, rep_name,
+                  started_at, analysis_status, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     sid,
                     payload.get("lead_id"),
                     payload.get("niche"),
                     payload["call_source"],
+                    payload.get("dialed_phone"),
                     payload.get("rep_name"),
                     payload.get("started_at", now),
                     payload.get("analysis_status", "pending"),

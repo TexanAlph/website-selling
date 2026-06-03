@@ -82,6 +82,16 @@ export async function listRecentLeads(rep: string, limit = 25): Promise<Lead[]> 
   return leads ?? [];
 }
 
+export async function listRecentOutboundCalls(
+  rep: string,
+  limit = 30,
+): Promise<Record<string, unknown>[]> {
+  const { calls } = await storageFetch<{ calls: Record<string, unknown>[] }>(
+    `/call-sessions/recent?rep=${encodeURIComponent(rep)}&limit=${limit}`,
+  );
+  return calls ?? [];
+}
+
 export async function listMissedCalls(limit = 30): Promise<MissedCall[]> {
   const { calls } = await storageFetch<{ calls: MissedCall[] }>(
     `/inbound/missed?limit=${limit}`,
@@ -171,6 +181,7 @@ export async function upsertCallSession(payload: {
   lead_id?: string | null;
   niche?: string | null;
   call_source: string;
+  dialed_phone?: string | null;
   rep_name?: string | null;
   started_at?: string;
   analysis_status?: string;

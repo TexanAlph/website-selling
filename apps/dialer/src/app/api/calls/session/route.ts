@@ -27,6 +27,8 @@ export async function POST(request: NextRequest) {
       niche: body.niche ?? null,
       source,
       repName: rep,
+      dialedPhone:
+        typeof body.dialedPhone === "string" ? body.dialedPhone : null,
     });
 
     return NextResponse.json({ ok: true });
