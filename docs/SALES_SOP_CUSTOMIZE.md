@@ -9,8 +9,9 @@ The live coach uses a **built-in SOP** (opening → gatekeeper → discovery →
 | Offer | $599 one-time website |
 | Buyer | Local service businesses with weak/no site (your scraper niches) |
 | Geo | San Antonio area |
-| Delivery | ~7–10 business days |
+| Delivery | Live within ~3 days on average |
 | Call flow | Full phase SOP + objection matrix |
+| Opening style | Niche + area + $599 first; **Apex** only if they ask who you are |
 | Compliance | No fake Google guarantees, no pressure, DNC respect |
 | Learning | Playbook DB + post-call scoring against same SOP |
 
@@ -23,7 +24,7 @@ Only set these if the defaults are wrong:
 | `COACH_COMPANY_NAME` | `Calvo Web` |
 | `COACH_OFFER_PRICE` | `599` or `$499` |
 | `COACH_OFFER_SUMMARY` | What's included in one sentence |
-| `COACH_DELIVERY_DAYS` | `7-10 business days` |
+| `COACH_DELIVERY_DAYS` | `live within 3 days on average` |
 | `COACH_PAYMENT_PROCESS` | How you invoice (Stripe link, Zelle, etc.) |
 | `COACH_SEND_INFO_URL` | What you text when they want info |
 | `COACH_TARGET_GEO` | If you expand beyond San Antonio |

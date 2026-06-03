@@ -32,19 +32,13 @@ export function CoachPanel({
   const [feedbackMessageId, setFeedbackMessageId] = useState<string | null>(
     null,
   );
-  const feedRef = useRef<HTMLDivElement>(null);
-
-  const {
-    listening,
-    liveTranscript,
-    isInterim,
-    sayNow,
-    streaming,
-    labeledLines,
-    usesMediaLegs,
-  } = useCoachListening(sessionId, leadId, active);
-
   const lastCounterAtRef = useRef<string | null>(null);
+
+  const { listening, sayNow, streaming, companyName } = useCoachListening(
+    sessionId,
+    leadId,
+    active,
+  );
 
   useEffect(() => {
     if (!sessionId) {
@@ -91,10 +85,6 @@ export function CoachPanel({
     };
   }, [sessionId, testMode]);
 
-  useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight });
-  }, [labeledLines, liveTranscript]);
-
   const counters = messages.filter((m) => m.role === "counter");
   const latestCounter = counters[counters.length - 1];
   const latestParsed = latestCounter
@@ -118,6 +108,10 @@ export function CoachPanel({
     sayNow ||
     (latestParsed?.text && !streaming ? latestParsed.text : "");
 
+  const contextLine = [companyName, nicheLabel?.trim()]
+    .filter(Boolean)
+    .join(" · ");
+
   async function sendFeedback(helpful: boolean) {
     const msgId = feedbackMessageId ?? latestCounter?.id;
     if (!sessionId || !msgId) return;
@@ -134,15 +128,15 @@ export function CoachPanel({
   }
 
   return (
-    <section className="glass flex min-h-0 flex-1 flex-col rounded-[var(--radius-xl)] p-4">
+    <section className="glass coach-panel flex min-h-0 flex-1 flex-col rounded-[var(--radius-xl)] p-4">
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
             AI coach
           </h2>
-          {nicheLabel ? (
-            <p className="mt-0.5 text-[10px] text-[var(--text-secondary)]">
-              {nicheLabel}
+          {contextLine ? (
+            <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+              {contextLine}
             </p>
           ) : null}
         </div>
@@ -153,70 +147,28 @@ export function CoachPanel({
           {active && listening ? (
             <span className="coach-listening-pill" aria-live="polite">
               <span className="coach-listening-dot" />
-              Live
+              Listening
             </span>
           ) : null}
         </div>
       </div>
 
       {active ? (
-        <>
-          <div
-            ref={feedRef}
-            className="coach-live-feed mt-3 max-h-[28vh] overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)]/60 p-3 text-sm"
-            aria-live="polite"
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
-              {usesMediaLegs ? "Prospect & you" : "Live audio"}
-            </p>
-            {labeledLines.length > 0 ? (
-              <ul className="mt-2 space-y-2">
-                {labeledLines.map((line, i) => (
-                  <li
-                    key={`${i}-${line.text.slice(0, 24)}`}
-                    className={
-                      line.speaker === "prospect"
-                        ? "coach-line-prospect"
-                        : line.speaker === "rep"
-                          ? "coach-line-rep"
-                          : "coach-line-mixed"
-                    }
-                  >
-                    {line.speaker !== "mixed" ? (
-                      <span className="coach-speaker-tag">
-                        {line.speaker === "prospect" ? "Prospect" : "You"}
-                      </span>
-                    ) : null}
-                    <span className={line.interim ? "opacity-60" : ""}>
-                      {line.text}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : liveTranscript ? (
-              <p className={`mt-2 ${isInterim ? "opacity-60" : ""}`}>
-                {liveTranscript}
-              </p>
-            ) : (
-              <p className="mt-2 text-[var(--text-secondary)]">
-                Waiting for speech…
-              </p>
-            )}
-          </div>
-
-          <div className="coach-say-now mt-3 rounded-[var(--radius-lg)] border border-emerald-500/25 bg-emerald-950/40 p-3.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/90">
-              Say now
-              {streaming ? " · …" : ""}
-            </p>
-            <p className="mt-1.5 text-sm leading-relaxed text-[var(--text)]">
-              {displaySayNow ||
-                (streaming
-                  ? "…"
-                  : "Lines appear here as the call progresses.")}
-            </p>
-          </div>
-        </>
+        <div className="coach-say-now coach-say-now--hero mt-3 flex min-h-0 flex-1 flex-col rounded-[var(--radius-lg)] border border-emerald-500/25 bg-emerald-950/40 p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400/90">
+            Say now
+            {streaming ? " · …" : ""}
+          </p>
+          <p className="coach-say-now__body mt-2 flex-1 text-base leading-relaxed text-[var(--text)]">
+            {displaySayNow ||
+              (streaming
+                ? "…"
+                : "Your opening line appears here when the call connects.")}
+          </p>
+          <p className="mt-2 text-[10px] text-[var(--text-tertiary)]">
+            Updates when they speak — no transcript panel, just what to say.
+          </p>
+        </div>
       ) : (
         <p className="mt-3 text-sm text-[var(--text-secondary)]">
           Start a call to activate the coach.

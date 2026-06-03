@@ -31,12 +31,13 @@ RULES (never break):
 
 function masterOfferBlock(cfg: SalesConfig): string {
   return `
+COMPANY: ${cfg.companyName} — only if prospect asks who you are / what company (never lead with it).
 OFFER (memorize):
 - Product: ${cfg.offerSummary} for ${cfg.offerPrice} one-time.
 - Who: ${cfg.targetGeo} with weak or no website (Google Maps leads).
 - Delivery: live in ${cfg.deliveryTimeline} after payment.
 - Payment: ${cfg.paymentProcess}.
-- Angle: missed calls / competitors showing up on Google / looks outdated on mobile.
+- Angle: simple professional website on their phone — one payment, not monthly SEO spam.
 `.trim();
 }
 
@@ -44,13 +45,15 @@ function stagePlaybook(cfg: SalesConfig): Record<CallStage, string> {
   return {
   opening: `
 STAGE: OPENING (first 15 seconds)
-Goal: Pattern interrupt + permission + local relevance. Not price yet.
+Goal: Clear offer + local relevance + permission. Company name comes later.
 Rep should:
-- Name + company in one breath, sound local and human.
-- Tie to their trade: "I work with [niche] businesses around [area] on Google visibility."
-- Ask permission: "Bad time or 30 seconds?"
-If voicemail energy: one hook + callback number, no pitch dump.
-Do NOT: mention $599 yet unless they ask what you sell.
+- Lead with trade + area + price (no "I'm with ${cfg.companyName}"): "We help [niche] businesses in [area] get professional websites for ${cfg.offerPrice} one-time."
+- Optional one-liner: "We build it, you approve, live in ${cfg.deliveryTimeline} — not a monthly trap."
+- Permission close: "Worth thirty seconds or bad time?"
+- If they ask what company / who is this / who's calling: "${cfg.companyName} — local team, I can text a couple examples."
+If voicemail energy: same hook (niche + area + ${cfg.offerPrice}) + callback number.
+Do NOT: open with company name or "I'm calling from…" unless they asked.
+Do NOT: claim Google ranking, SEO guarantees, or "#1".
 `,
 
   gatekeeper: `
@@ -95,7 +98,7 @@ Common counters (pick the best match to what prospect said):
 - Send info / email: "I'll text two examples + price so it's not inbox spam — what's the best mobile number?"
 - Not interested: "No worries — is it timing or you feel covered on Google already?"
 - Busy: "I'll be brief — bad time today or should I try tomorrow morning?"
-- Who is this / scam: calm identity + local reference + offer to text proof links.
+- Who is this / scam / what company: "${cfg.companyName} — we build one-time sites for ${cfg.offerPrice}, local references, happy to text proof links."
 - Already on Google Maps only: "Maps helps — a simple site is what makes them call you instead of bouncing."
 Do NOT: repeat full pitch. Do NOT argue.
 `,
@@ -160,7 +163,8 @@ export function buildLiveCoachSystemPrompt(stage: CallStage): string {
   const cfg = getSalesConfig();
   return `
 Live cold-call coach. Output ONE line the rep says next (max 2 short sentences).
-Offer: ${cfg.offerSummary} — ${cfg.offerPrice} one-time. ${cfg.targetGeo}.
+Company (${cfg.companyName}): only when prospect asks — never in opening. Offer: ${cfg.offerSummary} — ${cfg.offerPrice} one-time. ${cfg.targetGeo}.
+Opening style: "We help [niche] in [area] build websites for ${cfg.offerPrice}…" then permission question.
 ${COMPLIANCE}
 Stage: ${stageLabel(stage)}
 ${buildStageSection(stage)}
@@ -185,8 +189,9 @@ export function buildLiveCoachContext(input: CoachContextInput): BuiltCoachConte
     .filter(Boolean)
     .join("\n\n");
 
+  const cfg = getSalesConfig();
   const userPrompt = [
-    `${stageLabel(stage)} · ${niche} · ${business}. ${websiteNote}`,
+    `Company hold (${cfg.companyName} until asked) · ${stageLabel(stage)} · ${niche} · ${business} · area: ${cfg.targetGeo}. ${websiteNote}`,
     "Transcript:",
     input.transcript.trim().slice(-700),
     "Next line only:",

@@ -342,10 +342,8 @@ export function usePhoneCall() {
       call.mute(next);
     }
     setMuted(next);
-    setCallStatusLabel(
-      next ? "Muted — they cannot hear you" : speakerHint(iosAudioRoute, speakerOn),
-    );
-  }, [muted, iosAudioRoute, speakerOn]);
+    setCallStatusLabel(next ? "Muted — they cannot hear you" : "On call");
+  }, [muted]);
 
   const toggleSpeaker = useCallback(async () => {
     const device = deviceRef.current;
@@ -403,14 +401,15 @@ export function usePhoneCall() {
           );
         }
 
-        const device = await ensureDeviceReady();
-
         setCalling(true);
         setCallPhase("connecting");
         setCallStatusLabel("Connecting…");
         setMuted(false);
 
-        if (opts?.beforeConnect) await opts.beforeConnect(sid);
+        const device = await Promise.all([
+          ensureDeviceReady(),
+          opts?.beforeConnect?.(sid) ?? Promise.resolve(),
+        ]).then(([d]) => d);
 
         const call = await connectCall(device, phoneE164, sid);
 

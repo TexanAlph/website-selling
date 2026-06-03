@@ -1,6 +1,7 @@
 "use client";
 
 import { useKeypadCoachDefault } from "@/hooks/useKeypadCoachDefault";
+import { ToggleSwitch } from "./ToggleSwitch";
 
 type Props = {
   leadCallActive?: boolean;
@@ -39,29 +40,28 @@ export function KeypadCoachToggle({
   const sub =
     mode === "thisCall"
       ? compact
-        ? "This call only — off saves OpenRouter"
+        ? "This call only — off saves API usage"
         : "This call only"
       : "Default for your next keypad call";
 
+  const ariaLabel =
+    mode === "thisCall"
+      ? "AI coach for this call"
+      : "Default AI coach for next keypad call";
+
   return (
-    <label
+    <div
       className={`keypad-coach-toggle${compact ? " keypad-coach-toggle--compact" : ""}`}
     >
-      <span className="keypad-coach-toggle__text">
+      <div className="keypad-coach-toggle__text">
         <span className="keypad-coach-toggle__label">AI coach</span>
         <span className="keypad-coach-toggle__sub">{sub}</span>
-      </span>
-      <input
-        type="checkbox"
-        className="keypad-coach-toggle__input"
+      </div>
+      <ToggleSwitch
         checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        aria-label={
-          mode === "thisCall"
-            ? "AI coach for this call"
-            : "Default AI coach for next keypad call"
-        }
+        onChange={onChange}
+        ariaLabel={ariaLabel}
       />
-    </label>
+    </div>
   );
 }

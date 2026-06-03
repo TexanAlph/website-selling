@@ -10,6 +10,7 @@ import {
   buildLiveCoachSystemPrompt,
   type BuiltCoachContext,
 } from "./sales-sop";
+import { getSalesConfig } from "./sales-config";
 import { hasObjectionCue } from "./objection-cues";
 import {
   getSessionCoachCache,
@@ -22,6 +23,8 @@ export type CoachStreamInput = {
   leadId?: string | null;
   transcript: string;
   prospectOnly?: string;
+  /** Opening line before any speech (keypad / answer). */
+  bootstrap?: boolean;
 };
 
 async function loadCoachContext(
@@ -121,12 +124,18 @@ export async function* streamCoachPipeline(
   | { type: "done"; content: string; stage: string; stageLabel: string }
 > {
   const trimmed = input.transcript.trim();
-  if (!trimmed && !input.prospectOnly?.trim()) {
+  const bootstrap = Boolean(input.bootstrap);
+  if (!trimmed && !input.prospectOnly?.trim() && !bootstrap) {
     throw new Error("Empty transcript");
   }
 
   const { sessionId, leadId } = input;
-  const transcript = trimmed || input.prospectOnly || "";
+  const transcript =
+    trimmed ||
+    input.prospectOnly ||
+    (bootstrap
+      ? "[Call connected — prospect has not spoken. Opening only: we help [niche] in [area] build websites for one-time price — do NOT say company name yet; end with permission question.]"
+      : "");
   const { ctx } = await loadCoachContext(
     sessionId,
     leadId,
@@ -155,7 +164,7 @@ export async function* streamCoachPipeline(
 
   const line =
     full.trim() ||
-    "Quick question — when locals Google your service, do they find you first or the next company?";
+    `We help local businesses in the area get professional websites for one-time ${getSalesConfig().offerPrice} — bad time or thirty seconds?`;
   const counterContent = `[${ctx.stage}] ${line}`;
 
   await storage.insertCoachMessage({

@@ -79,6 +79,11 @@ export function Dialer() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (testMode || !phone.config?.twilioConfigured) return;
+    void fetch("/api/coach/warmup", { method: "POST" });
+  }, [testMode, phone.config?.twilioConfigured]);
+
   const fetchNextLead = useCallback(async () => {
     if (!configReady) return;
     if (testMode) {
@@ -284,9 +289,9 @@ export function Dialer() {
     activeCallSource === "queue" ? (lead?.id ?? null) : null;
   const coachNicheLabel =
     activeCallSource === "queue"
-      ? (lead?.niche?.trim() || null)
+      ? (lead?.niche?.trim() || "Local service")
       : activeCallSource === "keypad"
-        ? "Custom number"
+        ? "Keypad · local service"
         : null;
 
   const handleOutcome = (key: keyof typeof OUTCOME_STATUSES) => {
@@ -340,14 +345,11 @@ export function Dialer() {
               callSource={activeCallSource}
               callPhase={phone.callPhase}
               callStatusLabel={phone.callStatusLabel}
-              speakerOn={phone.speakerOn}
-              speakerSupported={phone.speakerSupported}
               muted={phone.muted}
               testMode={testMode}
               lead={lead}
               dialDisplay={keypadDialDisplay}
               onEndCall={endActiveCall}
-              onToggleSpeaker={() => void phone.toggleSpeaker()}
               onToggleMute={() => phone.toggleMute()}
               keypadCoachThisCall={keypadCoachThisCall}
               onKeypadCoachThisCallChange={setKeypadCoachThisCall}
@@ -473,7 +475,7 @@ function TabSwitcher({
 
   return (
     <div
-      className="segmented segmented--three relative mb-3"
+      className="segmented segmented--three segmented--tabs relative mb-3"
       role="tablist"
       aria-label="Dialer mode"
     >

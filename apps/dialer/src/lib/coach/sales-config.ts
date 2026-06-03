@@ -15,13 +15,14 @@ export type SalesConfig = {
 export function getSalesConfig(): SalesConfig {
   return {
     companyName:
-      process.env.COACH_COMPANY_NAME?.trim() || "our web design team",
+      process.env.COACH_COMPANY_NAME?.trim() || "Apex Build Partners",
     offerPrice: process.env.COACH_OFFER_PRICE?.trim() || "$599",
     offerSummary:
       process.env.COACH_OFFER_SUMMARY?.trim() ||
       "one-time professional website (no monthly hosting pitch unless they ask)",
     deliveryTimeline:
-      process.env.COACH_DELIVERY_DAYS?.trim() || "about 7–10 business days",
+      process.env.COACH_DELIVERY_DAYS?.trim() ||
+      "live within 3 days on average",
     paymentProcess:
       process.env.COACH_PAYMENT_PROCESS?.trim() ||
       "simple invoice link by text after they agree",

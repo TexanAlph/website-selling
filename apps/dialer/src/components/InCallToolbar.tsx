@@ -9,14 +9,11 @@ type Props = {
   callSource: "keypad" | "queue";
   callPhase: CallPhase;
   callStatusLabel: string;
-  speakerOn: boolean;
-  speakerSupported: boolean;
   muted: boolean;
   testMode: boolean;
   lead: Lead | null;
   dialDisplay: string | null;
   onEndCall: () => void;
-  onToggleSpeaker: () => void;
   onToggleMute: () => void;
   keypadCoachThisCall: boolean;
   onKeypadCoachThisCallChange: (on: boolean) => void;
@@ -26,14 +23,11 @@ export function InCallToolbar({
   callSource,
   callPhase,
   callStatusLabel,
-  speakerOn,
-  speakerSupported,
   muted,
   testMode,
   lead,
   dialDisplay,
   onEndCall,
-  onToggleSpeaker,
   onToggleMute,
   keypadCoachThisCall,
   onKeypadCoachThisCallChange,
@@ -55,6 +49,7 @@ export function InCallToolbar({
       {callSource === "queue" && lead ? (
         <p className="in-call-toolbar__lead">
           {lead.business_name}
+          {lead.niche?.trim() ? ` · ${lead.niche.trim()}` : ""}
           {lead.phone ? ` · ${lead.phone}` : ""}
         </p>
       ) : null}
@@ -66,11 +61,8 @@ export function InCallToolbar({
       <CallControlsBar
         callPhase={callPhase}
         callStatusLabel={callStatusLabel}
-        speakerOn={speakerOn}
-        speakerSupported={speakerSupported}
         muted={muted}
         testMode={testMode}
-        onToggleSpeaker={onToggleSpeaker}
         onToggleMute={onToggleMute}
       />
       <KeypadCoachToggle

@@ -6,13 +6,14 @@ import { hasObjectionCue } from "@/lib/coach/objection-cues";
 
 type CoachStack = {
   stt: SttProvider;
+  companyName: string;
   labels: { stt: string; liveLlm: string; batchLlm: string };
 };
 
-const SPEECH_PAUSE_MS = 500;
-const SPEECH_PAUSE_OBJECTION_MS = 350;
-const COACH_MIN_GAP_MS = 900;
-const COACH_MIN_GAP_OBJECTION_MS = 400;
+const SPEECH_PAUSE_MS = 400;
+const SPEECH_PAUSE_OBJECTION_MS = 280;
+const COACH_MIN_GAP_MS = 700;
+const COACH_MIN_GAP_OBJECTION_MS = 350;
 const DEEPGRAM_CHUNK_MS = 2000;
 
 export type LabeledLine = {
@@ -45,12 +46,17 @@ export function useCoachListening(
       .then((json) => {
         setStack({
           stt: json.stt,
+          companyName:
+            typeof json.companyName === "string"
+              ? json.companyName
+              : "Apex Build Partners",
           labels: json.labels,
         });
       })
       .catch(() => {
         setStack({
           stt: "webspeech",
+          companyName: "Apex Build Partners",
           labels: {
             stt: "Safari speech (free)",
             liveLlm: "Live coach",
@@ -70,19 +76,21 @@ export function useCoachListening(
       return;
     }
     setListening(true);
-    if (!warmedRef.current) {
-      warmedRef.current = true;
-      void fetch("/api/coach/warmup", { method: "POST" });
-    }
   }, [active, sessionId]);
 
   const streamToCoach = useCallback(
-    async (transcript: string, objection: boolean) => {
-      if (!sessionId || !transcript.trim()) return;
+    async (
+      transcript: string,
+      objection: boolean,
+      opts?: { bootstrap?: boolean },
+    ) => {
+      if (!sessionId) return;
+      if (!opts?.bootstrap && !transcript.trim()) return;
 
+      const bootstrap = opts?.bootstrap;
       const minGap = objection ? COACH_MIN_GAP_OBJECTION_MS : COACH_MIN_GAP_MS;
       const now = Date.now();
-      if (now - lastCoachAt.current < minGap) return;
+      if (!bootstrap && now - lastCoachAt.current < minGap) return;
       lastCoachAt.current = now;
 
       abortRef.current?.abort();
@@ -90,7 +98,7 @@ export function useCoachListening(
       abortRef.current = ac;
 
       setStreaming(true);
-      setSayNow("");
+      if (!bootstrap) setSayNow("");
 
       try {
         const res = await fetch("/api/coach/stream", {
@@ -100,6 +108,7 @@ export function useCoachListening(
             sessionId,
             leadId,
             transcript: transcript.slice(-800),
+            bootstrap: opts?.bootstrap,
           }),
           signal: ac.signal,
         });
@@ -164,6 +173,13 @@ export function useCoachListening(
     },
     [streamToCoach],
   );
+
+  useEffect(() => {
+    if (!active || !sessionId || warmedRef.current) return;
+    warmedRef.current = true;
+    void fetch("/api/coach/warmup", { method: "POST" });
+    void streamToCoach("", false, { bootstrap: true });
+  }, [active, sessionId, streamToCoach]);
 
   const sendAudioChunk = useCallback(
     async (blob: Blob) => {
@@ -346,13 +362,10 @@ export function useCoachListening(
 
   return {
     stack,
+    companyName: stack?.companyName ?? "Apex Build Partners",
     listening: active && listening,
-    liveTranscript,
-    isInterim,
     sayNow,
     streaming,
-    labeledLines,
-    usesMediaLegs: labeledLines.some((l) => l.speaker !== "mixed"),
   };
 }
 

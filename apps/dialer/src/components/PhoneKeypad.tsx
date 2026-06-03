@@ -76,9 +76,11 @@ export function PhoneKeypad({
   return (
     <div className="keypad-shell">
       <div className="keypad-display">
-        {!deviceReady && !testMode && (
-          <span className="keypad-status">Connecting…</span>
-        )}
+        {!deviceReady && !testMode ? (
+          <span className="keypad-status">Preparing phone…</span>
+        ) : !testMode ? (
+          <span className="keypad-status keypad-status--ready">Ready to call</span>
+        ) : null}
         <p
           className={`dial-display w-full text-center ${
             display ? "dial-display--active" : "dial-display--empty"

@@ -20,7 +20,7 @@ export async function generateCoachLine(
     ...ctx,
     line:
       text ||
-      "Quick question — when locals Google your service, do they find you first or the next company?",
+      "We help local businesses get professional websites for a one-time $599 — bad time or thirty seconds?",
   };
 }
 

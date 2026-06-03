@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
     let leadId: string | null | undefined;
     let transcript = "";
     let prospectOnly: string | undefined;
+    let bootstrap = false;
 
     if (contentType.includes("multipart/form-data")) {
       const form = await request.formData();
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
       leadId = body.leadId ?? null;
       transcript = body.transcript ?? "";
       prospectOnly = body.prospectOnly;
+      bootstrap = Boolean(body.bootstrap);
     }
 
     if (!sessionId) {
@@ -57,6 +59,7 @@ export async function POST(request: NextRequest) {
             leadId,
             transcript,
             prospectOnly,
+            bootstrap,
           })) {
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify(event)}\n\n`),

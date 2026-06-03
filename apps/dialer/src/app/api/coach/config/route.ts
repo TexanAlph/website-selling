@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCoachStackConfig } from "@/lib/coach/config";
+import { getSalesConfig } from "@/lib/coach/sales-config";
 
 export async function GET() {
   const stack = getCoachStackConfig();
+  const sales = getSalesConfig();
   return NextResponse.json({
+    companyName: sales.companyName,
     stt: stack.stt,
     liveLlm: stack.liveLlm,
     batchLlm: stack.batchLlm,
