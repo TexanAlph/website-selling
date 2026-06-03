@@ -6,6 +6,7 @@ set -euo pipefail
 
 REPO="${WEB_DIALER_REPO:-$HOME/website-selling}"
 cd "$REPO"
+git pull --ff-only
 
 if [[ ! -d scraper/.venv ]]; then
   cd scraper
