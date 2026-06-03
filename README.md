@@ -103,7 +103,7 @@ Three tabs — details in **[docs/DIALER_APP.md](docs/DIALER_APP.md)**:
 
 ## AI coach (split LLM)
 
-All LLM API keys go on **Vercel** (Next.js API routes). The Mac Mini only needs storage + scraper keys.
+**OpenRouter and Gemini keys go on Vercel only** (the dialer app calls them from serverless API routes). **Do not** add those keys to the Mac Mini. The Mini needs `STORAGE_API_*` + `GOOGLE_MAPS_API_KEY` for the scraper.
 
 | When | Provider | Env |
 |------|----------|-----|

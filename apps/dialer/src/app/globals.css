@@ -163,6 +163,81 @@ body {
   box-sizing: border-box;
 }
 
+.app-content--on-call {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.in-call-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  width: 100%;
+  gap: 0.4rem;
+}
+
+.in-call-toolbar {
+  flex-shrink: 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-lg);
+}
+
+.in-call-toolbar__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.in-call-toolbar__source {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-tertiary);
+}
+
+.in-call-toolbar__end {
+  width: auto;
+  min-height: 2rem;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.8125rem;
+}
+
+.in-call-toolbar__lead,
+.in-call-toolbar__dial {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.in-call-coach-pane {
+  flex: 1;
+  min-height: 14rem;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.in-call-coach-pane .glass {
+  flex: 1;
+  min-height: 0;
+}
+
+.in-call-tab-hint {
+  margin: 0;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+}
+
+.in-call-tab-slot {
+  flex-shrink: 0;
+  min-height: 0;
+}
+
 /* Keypad fills remaining viewport */
 .keypad-shell {
   display: flex;
@@ -172,6 +247,18 @@ body {
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;
+}
+
+.keypad-shell--on-call {
+  justify-content: flex-start;
+  gap: 0.35rem;
+}
+
+.keypad-shell--on-call > .min-h-0.flex-1 {
+  flex: 1;
+  min-height: 12rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .keypad-display {
@@ -1547,6 +1634,78 @@ body {
 
 .call-history--compact .call-history-body {
   max-height: 28vh;
+}
+
+.keypad-coach-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0.35rem 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  cursor: pointer;
+}
+
+.keypad-coach-toggle--compact {
+  margin: 0.5rem 0 0;
+}
+
+.keypad-coach-toggle-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.keypad-coach-toggle__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.keypad-coach-toggle__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.keypad-coach-toggle__sub {
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+}
+
+.keypad-coach-toggle__input {
+  width: 2.75rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+
+.keypad-coach-off {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+}
+
+.keypad-coach-off__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.keypad-coach-off__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--text-tertiary);
 }
 
 .keypad-shell--with-history {

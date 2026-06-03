@@ -16,13 +16,15 @@ Defaults minimize recurring cost. You still pay for **Twilio minutes** and **Goo
 
 ## Where API keys live
 
-| Key | Machine | Used for |
-|-----|---------|----------|
-| `STORAGE_API_*` | **Vercel + Mac Mini** | Leads, sessions, coach messages |
-| `OPENROUTER_API_KEY` | **Vercel only** | Live coach during calls |
-| `GEMINI_API_KEY` | **Vercel only** | Post-call swarm + nightly `/api/cron/analyze` |
-| `GOOGLE_MAPS_API_KEY` | **Mac Mini only** | Scraper |
-| `TWILIO_*` | **Vercel** | Voice SDK + webhooks |
+| Key | Put it on | Do **not** put it on |
+|-----|-----------|----------------------|
+| `OPENROUTER_API_KEY` | **Vercel** | Mac Mini |
+| `GEMINI_API_KEY` | **Vercel** | Mac Mini |
+| `TWILIO_*` | **Vercel** | Mac Mini |
+| `STORAGE_API_URL` + `STORAGE_API_SECRET` | **Vercel and Mac Mini** (same secret both sides) | — |
+| `GOOGLE_MAPS_API_KEY` | **Mac Mini** (scraper) | Vercel (dialer app does not use it) |
+
+**Plain English:** OpenRouter and Gemini are called from the **dialer website on Vercel** during calls and analysis. The Mac Mini only stores data and runs the scraper — it never needs your OpenRouter or Gemini keys.
 
 Google Cloud billing for Maps is separate from Gemini AI Studio — same Gmail does **not** mean one bill or one free tier.
 

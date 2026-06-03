@@ -11,12 +11,15 @@ import { useInsights } from "@/hooks/useInsights";
 import { apiCreateCallSession, apiFinalizeCallSession } from "@/lib/calls/client";
 import { hapticOutcome } from "@/lib/haptics";
 import type { DialerUsername } from "@/lib/dialer-auth";
-import { phoneToE164 } from "@/lib/phone";
+import { formatDialDisplay, phoneToE164 } from "@/lib/phone";
 import { useMissedCallBadge } from "@/hooks/useMissedCallBadge";
+import { useKeypadCoachEnabled } from "@/hooks/useKeypadCoachEnabled";
 import { PhoneKeypad } from "./PhoneKeypad";
 import { LeadsQueue } from "./LeadsQueue";
 import { HistoryView } from "./HistoryView";
 import { InstallPrompt } from "./InstallPrompt";
+import { CoachPanel } from "./CoachPanel";
+import { InCallToolbar } from "./InCallToolbar";
 import { useMissedUnreadCount } from "@/hooks/useMissedUnreadCount";
 
 type Tab = "keypad" | "queue" | "history";
@@ -40,8 +43,15 @@ export function Dialer() {
   const [queueError, setQueueError] = useState<string | null>(null);
   const [username, setUsername] = useState<DialerUsername | null>(null);
   const [recapSessionId, setRecapSessionId] = useState<string | null>(null);
+  const [activeCallSource, setActiveCallSource] = useState<
+    "keypad" | "queue" | null
+  >(null);
+  const [keypadDialDisplay, setKeypadDialDisplay] = useState<string | null>(
+    null,
+  );
 
   const phone = usePhoneCall();
+  const { enabled: keypadCoachEnabled } = useKeypadCoachEnabled();
   const testMode = phone.testMode;
   useMissedCallBadge(testMode);
   const configReady = phone.config !== null;
@@ -123,6 +133,8 @@ export function Dialer() {
   const endQueueCall = async () => {
     const sid = phone.getSessionId();
     await phone.endCall(async (endedId) => {
+      setActiveCallSource(null);
+      setKeypadDialDisplay(null);
       await finalizeSession(endedId ?? sid, { endReason: "manual" });
     });
   };
@@ -183,6 +195,7 @@ export function Dialer() {
     setQueueError(null);
     setRecapSessionId(null);
 
+    setActiveCallSource("queue");
     await phone.startCall(lead.phone, {
       beforeConnect: async (sessionId) => {
         if (testMode) {
@@ -206,12 +219,19 @@ export function Dialer() {
         });
       },
       onDisconnect: async (endedId) => {
+        setActiveCallSource(null);
+        setKeypadDialDisplay(null);
         await finalizeSession(endedId, { endReason: "hangup" });
       },
     });
   };
 
   const startOutboundCall = (e164: string) => {
+    setActiveCallSource("keypad");
+    const digits = e164.replace(/\D/g, "");
+    setKeypadDialDisplay(
+      digits.length > 0 ? formatDialDisplay(digits) : e164,
+    );
     void phone.startCall(e164, {
       beforeConnect: async (sessionId) => {
         await apiCreateCallSession({
@@ -220,6 +240,8 @@ export function Dialer() {
         });
       },
       onDisconnect: async (endedId) => {
+        setActiveCallSource(null);
+        setKeypadDialDisplay(null);
         await finalizeSession(endedId, { endReason: "hangup" });
       },
     });
@@ -239,9 +261,31 @@ export function Dialer() {
   const endKeypadCall = () => {
     const sid = phone.getSessionId();
     void phone.endCall(async (endedId) => {
+      setActiveCallSource(null);
+      setKeypadDialDisplay(null);
       await finalizeSession(endedId ?? sid, { endReason: "manual" });
     });
   };
+
+  const endActiveCall = () => {
+    if (activeCallSource === "keypad") endKeypadCall();
+    else void endQueueCall();
+  };
+
+  const onCall = phone.calling && activeCallSource;
+  const showLiveCoach = Boolean(
+    onCall &&
+      (activeCallSource === "queue" ||
+        (activeCallSource === "keypad" && keypadCoachEnabled)),
+  );
+  const coachLeadId =
+    activeCallSource === "queue" ? (lead?.id ?? null) : null;
+  const coachNicheLabel =
+    activeCallSource === "queue"
+      ? (lead?.niche?.trim() || null)
+      : activeCallSource === "keypad"
+        ? "Custom number"
+        : null;
 
   const handleOutcome = (key: keyof typeof OUTCOME_STATUSES) => {
     void setLeadStatus(OUTCOME_STATUSES[key], key);
@@ -285,23 +329,93 @@ export function Dialer() {
 
       <InstallPrompt />
 
-      <div className="app-content safe-x">
-        {tab === "keypad" ? (
+      <div
+        className={`app-content safe-x${onCall ? " app-content--on-call" : ""}`}
+      >
+        {onCall ? (
+          <div className="in-call-layout">
+            <InCallToolbar
+              callSource={activeCallSource}
+              callPhase={phone.callPhase}
+              callStatusLabel={phone.callStatusLabel}
+              speakerOn={phone.speakerOn}
+              speakerSupported={phone.speakerSupported}
+              muted={phone.muted}
+              testMode={testMode}
+              lead={lead}
+              dialDisplay={keypadDialDisplay}
+              onEndCall={endActiveCall}
+              onToggleSpeaker={() => void phone.toggleSpeaker()}
+              onToggleMute={() => phone.toggleMute()}
+            />
+            {showLiveCoach ? (
+              <div className="in-call-coach-pane">
+                <CoachPanel
+                  sessionId={phone.sessionId}
+                  leadId={coachLeadId}
+                  nicheLabel={coachNicheLabel}
+                  active
+                  testMode={testMode}
+                />
+              </div>
+            ) : (
+              <div className="keypad-coach-off glass in-call-coach-pane">
+                <p className="keypad-coach-off__title">Regular call</p>
+                <p className="keypad-coach-off__hint">
+                  AI coach is off for keypad calls — no OpenRouter usage. Turn
+                  it on under Keypad before dialing if you want Say now on all
+                  tabs.
+                </p>
+              </div>
+            )}
+            <p className="in-call-tab-hint">
+              Switch Keypad, Leads, or History — coach stays here during this
+              call.
+            </p>
+            <div className="in-call-tab-slot">
+              {tab === "keypad" ? (
+                <PhoneKeypad
+                  testMode={phone.testMode}
+                  deviceReady={phone.deviceReady}
+                  callInProgress
+                  error={error}
+                  onStartCall={startOutboundCall}
+                />
+              ) : tab === "queue" ? (
+                <LeadsQueue
+                  lead={lead}
+                  queueCount={queueCount}
+                  testMode={phone.testMode}
+                  storageConfigured={storageConfigured}
+                  loading={loading || !configReady}
+                  callInProgress
+                  deviceReady={phone.deviceReady}
+                  error={error}
+                  recap={recap}
+                  recapLoading={recapLoading}
+                  insights={insights}
+                  insightsLoading={insightsLoading}
+                  onDismissRecap={() => setRecapSessionId(null)}
+                  onRetryQueue={() => void fetchNextLead()}
+                  onCallLead={() => void callNextLead()}
+                  onOutcome={handleOutcome}
+                />
+              ) : (
+                <HistoryView
+                  testMode={testMode}
+                  onSelectLead={selectRecentLead}
+                  onCallBack={handleCallBack}
+                  onUnreadChange={() => void refreshHistoryUnread()}
+                />
+              )}
+            </div>
+          </div>
+        ) : tab === "keypad" ? (
           <PhoneKeypad
             testMode={phone.testMode}
             deviceReady={phone.deviceReady}
-            calling={phone.calling}
-            callPhase={phone.callPhase}
-            callStatusLabel={phone.callStatusLabel}
-            speakerOn={phone.speakerOn}
-            speakerSupported={phone.speakerSupported}
-            sessionId={phone.sessionId}
             error={error}
             onStartCall={startOutboundCall}
-            onEndCall={endKeypadCall}
-            onToggleSpeaker={() => void phone.toggleSpeaker()}
-            muted={phone.muted}
-            onToggleMute={() => phone.toggleMute()}
           />
         ) : tab === "queue" ? (
           <LeadsQueue
@@ -310,17 +424,8 @@ export function Dialer() {
             testMode={phone.testMode}
             storageConfigured={storageConfigured}
             loading={loading || !configReady}
-            calling={phone.calling}
-            callPhase={phone.callPhase}
-            callStatusLabel={phone.callStatusLabel}
             deviceReady={phone.deviceReady}
-            speakerOn={phone.speakerOn}
-            speakerSupported={phone.speakerSupported}
-            sessionId={phone.sessionId}
             error={error}
-            onToggleSpeaker={() => void phone.toggleSpeaker()}
-            muted={phone.muted}
-            onToggleMute={() => phone.toggleMute()}
             recap={recap}
             recapLoading={recapLoading}
             insights={insights}

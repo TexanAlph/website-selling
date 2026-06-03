@@ -1,12 +1,9 @@
 "use client";
 
-import type { CallPhase } from "@/hooks/usePhoneCall";
 import type { Lead } from "@/lib/leads";
-import { CallControlsBar } from "./CallControlsBar";
 import type { SessionRecap } from "@/lib/calls/types";
 import type { InsightsPayload } from "@/hooks/useInsights";
 import { LeadCard } from "./LeadCard";
-import { CoachPanel } from "./CoachPanel";
 import { PostCallWrapUp } from "./PostCallWrapUp";
 import { DailyInsightsStrip } from "./DailyInsightsStrip";
 import { MAX_NEW_PER_REP, queueCountDisplay } from "@/lib/rep-queue";
@@ -16,18 +13,11 @@ type Props = {
   queueCount: number | null;
   storageConfigured: boolean;
   loading: boolean;
-  calling: boolean;
-  callPhase: CallPhase;
-  callStatusLabel: string;
   deviceReady: boolean;
   testMode: boolean;
-  speakerOn: boolean;
-  speakerSupported: boolean;
-  muted: boolean;
-  sessionId: string | null;
   error: string | null;
-  onToggleSpeaker: () => void;
-  onToggleMute: () => void;
+  /** Shared in-call UI (toolbar + coach) lives in Dialer */
+  callInProgress?: boolean;
   recap: SessionRecap | null;
   recapLoading: boolean;
   insights: InsightsPayload | null;
@@ -66,18 +56,10 @@ export function LeadsQueue({
   queueCount,
   storageConfigured,
   loading,
-  calling,
-  callPhase,
-  callStatusLabel,
   deviceReady,
   testMode,
-  speakerOn,
-  speakerSupported,
-  muted,
-  sessionId,
   error,
-  onToggleSpeaker,
-  onToggleMute,
+  callInProgress = false,
   recap,
   recapLoading,
   insights,
@@ -89,57 +71,18 @@ export function LeadsQueue({
 }: Props) {
   const canCall = Boolean(lead) && (testMode || deviceReady) && !loading;
   const needsOutcome =
-    Boolean(lead) && lead?.status === "Calling" && !calling && !testMode;
+    Boolean(lead) &&
+    lead?.status === "Calling" &&
+    !callInProgress &&
+    !testMode;
   const wrapUp =
-    !calling &&
+    !callInProgress &&
     (needsOutcome || recapLoading || Boolean(recap?.summary || recap?.repScore));
 
-  const nicheLabel = lead?.niche?.trim() || null;
   const leadKey = lead?.id ?? "empty";
 
-  if (calling) {
-    return (
-      <div className="leads-shell leads-shell--on-call">
-        <div className="leads-top leads-top--minimal">
-          <LeadCard
-            lead={lead}
-            loading={loading && !lead}
-            calling
-            variant="strip"
-          />
-          <div className="leads-actions leads-actions--compact">
-            <button
-              type="button"
-              onClick={onCallLead}
-              className="btn-primary leads-call-btn btn-primary--end"
-            >
-              End call
-            </button>
-            <CallControlsBar
-              callPhase={callPhase}
-              callStatusLabel={callStatusLabel}
-              speakerOn={speakerOn}
-              speakerSupported={speakerSupported}
-              muted={muted}
-              testMode={testMode}
-              onToggleSpeaker={onToggleSpeaker}
-              onToggleMute={onToggleMute}
-            />
-          </div>
-        </div>
-        <div className="leads-main">
-          <div className="leads-coach-pane">
-            <CoachPanel
-              sessionId={sessionId}
-              leadId={lead?.id ?? null}
-              nicheLabel={nicheLabel}
-              active={calling}
-              testMode={testMode}
-            />
-          </div>
-        </div>
-      </div>
-    );
+  if (callInProgress) {
+    return null;
   }
 
   if (wrapUp) {

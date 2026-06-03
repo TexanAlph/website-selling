@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { formatDialDisplay, toOutboundE164 } from "@/lib/phone";
-import type { CallPhase } from "@/hooks/usePhoneCall";
-import { CallControlsBar } from "./CallControlsBar";
-import { CoachPanel } from "./CoachPanel";
+import { KeypadCoachToggle } from "./KeypadCoachToggle";
 
 const KEYS: { digit: string; sub?: string }[] = [
   { digit: "1" },
@@ -38,45 +36,29 @@ function PhoneIcon() {
 type Props = {
   testMode: boolean;
   deviceReady: boolean;
-  calling: boolean;
-  callPhase: CallPhase;
-  callStatusLabel: string;
-  speakerOn: boolean;
-  speakerSupported: boolean;
-  muted: boolean;
-  sessionId: string | null;
   error: string | null;
   onStartCall: (e164: string) => void;
-  onEndCall: () => void;
-  onToggleSpeaker: () => void;
-  onToggleMute: () => void;
+  /** Shared in-call UI is shown in Dialer — keypad tab is idle only */
+  callInProgress?: boolean;
 };
 
 export function PhoneKeypad({
   testMode,
   deviceReady,
-  calling,
-  callPhase,
-  callStatusLabel,
-  speakerOn,
-  speakerSupported,
-  muted,
-  sessionId,
   error,
   onStartCall,
-  onEndCall,
-  onToggleSpeaker,
-  onToggleMute,
+  callInProgress = false,
 }: Props) {
   const [raw, setRaw] = useState("");
+  if (callInProgress) {
+    return null;
+  }
 
   function append(ch: string) {
-    if (calling) return;
     setRaw((r) => (r + ch).slice(0, 15));
   }
 
   function backspace() {
-    if (calling) return;
     setRaw((r) => r.slice(0, -1));
   }
 
@@ -87,52 +69,8 @@ export function PhoneKeypad({
   const canCall = Boolean(e164) && (testMode || deviceReady);
 
   function handleCall() {
-    if (calling) {
-      onEndCall();
-      return;
-    }
     if (!e164) return;
     onStartCall(e164);
-  }
-
-  if (calling) {
-    return (
-      <div className="keypad-shell min-h-0">
-        <div className="keypad-display">
-          <CallControlsBar
-            callPhase={callPhase}
-            callStatusLabel={callStatusLabel}
-            speakerOn={speakerOn}
-            speakerSupported={speakerSupported}
-            muted={muted}
-            testMode={testMode}
-            onToggleSpeaker={onToggleSpeaker}
-            onToggleMute={onToggleMute}
-          />
-          <p className="dial-display dial-display--active">{display}</p>
-        </div>
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <CoachPanel
-            sessionId={sessionId}
-            leadId={null}
-            active={calling}
-            testMode={testMode}
-          />
-        </div>
-        <div className="keypad-actions shrink-0 pt-2">
-          <span />
-          <button
-            type="button"
-            onClick={handleCall}
-            className="keypad-action-btn keypad-action-call btn-call btn-call--end"
-            aria-label="End call"
-          >
-            <span className="keypad-action-label">End call</span>
-          </button>
-          <span />
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -156,12 +94,13 @@ export function PhoneKeypad({
         </p>
       )}
 
+      <KeypadCoachToggle />
+
       <div className="keypad-grid min-h-0 flex-1 content-center overflow-hidden">
         {KEYS.map(({ digit, sub }) => (
           <button
             key={digit}
             type="button"
-            disabled={calling}
             onClick={() => append(digit)}
             className="keypad-key"
           >
