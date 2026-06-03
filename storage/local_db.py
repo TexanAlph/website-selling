@@ -208,6 +208,24 @@ def get_lead(lead_id: str) -> dict[str, Any] | None:
         return row_to_dict(row)
 
 
+def list_recent_leads(rep: str, limit: int = 25) -> list[dict[str, Any]]:
+    """Leads with a logged outcome — for callbacks / looking up numbers."""
+    limit = max(1, min(int(limit), 50))
+    with connect() as conn:
+        init_db(conn)
+        rows = conn.execute(
+            """
+            SELECT * FROM leads
+            WHERE assigned_rep = ?
+              AND status IN ('Interested/Closed', 'Not Interested', 'Wrong Number')
+            ORDER BY status_changed_at DESC
+            LIMIT ?
+            """,
+            (rep, limit),
+        ).fetchall()
+        return [row_to_dict(r) for r in rows if r]
+
+
 # --- Call sessions ---
 
 

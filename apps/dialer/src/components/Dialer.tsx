@@ -39,7 +39,11 @@ export function Dialer() {
   const phone = usePhoneCall();
   const testMode = phone.testMode;
   const configReady = phone.config !== null;
-  const { queueCount, setQueueCount } = useLeadQueueCount(true, testMode);
+  const storageConfigured = phone.config?.storageConfigured ?? false;
+  const { queueCount, setQueueCount, refreshQueueCount } = useLeadQueueCount(
+    true,
+    testMode,
+  );
   const { recap, loading: recapLoading } = useSessionRecap(recapSessionId);
   const {
     data: insights,
@@ -62,7 +66,6 @@ export function Dialer() {
     if (!configReady) return;
     if (testMode) {
       setLead({ ...MOCK_TEST_LEAD, status: "New" });
-      setQueueCount(1);
       setLoading(false);
       return;
     }
@@ -77,12 +80,13 @@ export function Dialer() {
       if (typeof json.queueCount === "number") {
         setQueueCount(json.queueCount);
       }
+      void refreshQueueCount();
     } catch (e) {
       setQueueError(e instanceof Error ? e.message : "Failed to load lead");
       setLead(null);
     }
     setLoading(false);
-  }, [setQueueCount, testMode, configReady]);
+  }, [setQueueCount, testMode, configReady, refreshQueueCount]);
 
   useEffect(() => {
     if (!configReady) return;
@@ -91,18 +95,6 @@ export function Dialer() {
 
   const showRecapForSession = (sessionId: string | null) => {
     if (sessionId && !testMode) setRecapSessionId(sessionId);
-  };
-
-  const resetLeadAfterCall = async () => {
-    if (testMode && lead) {
-      setLead({ ...lead, status: "New" });
-    } else if (lead) {
-      try {
-        await patchLead(lead.id, "New");
-      } catch {
-        /* ignore */
-      }
-    }
   };
 
   const finalizeSession = async (
@@ -126,8 +118,13 @@ export function Dialer() {
     const sid = phone.getSessionId();
     await phone.endCall(async (endedId) => {
       await finalizeSession(endedId ?? sid, { endReason: "manual" });
-      await resetLeadAfterCall();
     });
+  };
+
+  const selectRecentLead = (picked: Lead) => {
+    setRecapSessionId(null);
+    setQueueError(null);
+    setLead(picked);
   };
 
   const setLeadStatus = async (
@@ -200,7 +197,6 @@ export function Dialer() {
       },
       onDisconnect: async (endedId) => {
         await finalizeSession(endedId, { endReason: "hangup" });
-        await resetLeadAfterCall();
       },
     });
   };
@@ -281,12 +277,13 @@ export function Dialer() {
           <LeadsQueue
             lead={lead}
             queueCount={queueCount}
+            testMode={phone.testMode}
+            storageConfigured={storageConfigured}
             loading={loading || !configReady}
             calling={phone.calling}
             callPhase={phone.callPhase}
             callStatusLabel={phone.callStatusLabel}
             deviceReady={phone.deviceReady}
-            testMode={phone.testMode}
             speakerOn={phone.speakerOn}
             speakerSupported={phone.speakerSupported}
             sessionId={phone.sessionId}
@@ -300,6 +297,7 @@ export function Dialer() {
             onRetryQueue={() => void fetchNextLead()}
             onCallLead={() => void callNextLead()}
             onOutcome={handleOutcome}
+            onSelectRecentLead={selectRecentLead}
           />
         )}
       </div>

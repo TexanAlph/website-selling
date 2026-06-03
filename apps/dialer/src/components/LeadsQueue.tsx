@@ -10,11 +10,13 @@ import { CoachPanel } from "./CoachPanel";
 import { PostCallRecap } from "./PostCallRecap";
 import { DailyInsightsStrip } from "./DailyInsightsStrip";
 import { ScraperStatusStrip } from "./ScraperStatusStrip";
-import { MAX_NEW_PER_REP, queueLabel } from "@/lib/rep-queue";
+import { MAX_NEW_PER_REP, queueCountDisplay } from "@/lib/rep-queue";
+import { RecentLeadsPanel } from "./RecentLeadsPanel";
 
 type Props = {
   lead: Lead | null;
   queueCount: number | null;
+  storageConfigured: boolean;
   loading: boolean;
   calling: boolean;
   callPhase: CallPhase;
@@ -34,11 +36,13 @@ type Props = {
   onRetryQueue: () => void;
   onCallLead: () => void;
   onOutcome: (key: "wrong" | "not_interested" | "interested") => void;
+  onSelectRecentLead: (lead: Lead) => void;
 };
 
 export function LeadsQueue({
   lead,
   queueCount,
+  storageConfigured,
   loading,
   calling,
   callPhase,
@@ -58,14 +62,18 @@ export function LeadsQueue({
   onRetryQueue,
   onCallLead,
   onOutcome,
+  onSelectRecentLead,
 }: Props) {
   const canCall = Boolean(lead) && (testMode || deviceReady) && !loading;
+  const needsOutcome =
+    Boolean(lead) && lead?.status === "Calling" && !calling && !testMode;
 
-  const atCap = queueCount !== null && queueCount >= MAX_NEW_PER_REP;
-  const countLabel =
-    queueCount === null
-      ? "…"
-      : `Your queue: ${queueLabel(queueCount)}`;
+  const atCap =
+    !testMode && queueCount !== null && queueCount >= MAX_NEW_PER_REP;
+  const countLabel = queueCountDisplay(queueCount, {
+    testMode,
+    storageConfigured,
+  });
 
   const nicheLabel = lead?.niche?.trim() || null;
 
@@ -91,6 +99,14 @@ export function LeadsQueue({
         {!lead && !loading && queueCount === 0 ? (
           <p className="text-[11px] text-[var(--text-secondary)]">
             No leads in your queue. Scraper refills when below {MAX_NEW_PER_REP}.
+          </p>
+        ) : null}
+
+        {needsOutcome ? (
+          <p className="wrap-up-banner" role="status">
+            Call ended — tap Wrong, Not interested, or Interested to save and
+            load the next lead. AI recap is below (not a substitute for
+            outcome).
           </p>
         ) : null}
 
@@ -174,6 +190,11 @@ export function LeadsQueue({
         {error && !insights ? (
           <p className="alert-error leads-error">{error}</p>
         ) : null}
+
+        <RecentLeadsPanel
+          testMode={testMode}
+          onSelectLead={onSelectRecentLead}
+        />
       </div>
 
       {calling && (

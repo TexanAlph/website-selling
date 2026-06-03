@@ -1,15 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { DIALER_USERNAMES, type DialerUsername } from "@/lib/dialer-auth";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState<DialerUsername | "">("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setPassword("");
+    setUsername("");
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!username) {
+      setError("Choose david or x");
+      return;
+    }
     setError(null);
     setLoading(true);
 
@@ -59,41 +70,77 @@ export default function LoginPage() {
       <form
         onSubmit={handleSubmit}
         className="glass rounded-[var(--radius-xl)] p-6 shadow-[0_16px_48px_rgba(0,0,0,0.35)]"
+        autoComplete="off"
       >
+        {/* Absorb iOS Keychain autofill so real fields stay empty on load */}
+        <input
+          type="text"
+          name="prevent_autofill_username"
+          tabIndex={-1}
+          autoComplete="username"
+          className="auth-autofill-trap"
+          aria-hidden
+          readOnly
+        />
+        <input
+          type="password"
+          name="prevent_autofill_password"
+          tabIndex={-1}
+          autoComplete="current-password"
+          className="auth-autofill-trap"
+          aria-hidden
+          readOnly
+        />
+
         <div className="space-y-4">
           <div>
-            <label
-              htmlFor="username"
-              className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]"
-            >
-              Username
-            </label>
-            <input
-              id="username"
-              type="text"
-              required
-              autoComplete="username"
-              placeholder="david"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="input-premium"
-            />
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
+              Rep
+            </p>
+            <div className="auth-rep-picker" role="group" aria-label="Choose rep">
+              {DIALER_USERNAMES.map((rep) => (
+                <button
+                  key={rep}
+                  type="button"
+                  className={`auth-rep-chip ${username === rep ? "auth-rep-chip--active" : ""}`}
+                  aria-pressed={username === rep}
+                  onClick={() => {
+                    setUsername(rep);
+                    setError(null);
+                  }}
+                >
+                  {rep.charAt(0).toUpperCase() + rep.slice(1)}
+                </button>
+              ))}
+            </div>
           </div>
+
           <div>
             <label
-              htmlFor="password"
+              htmlFor="dialer-pass"
               className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]"
             >
               Password
             </label>
             <input
-              id="password"
+              ref={passwordRef}
+              id="dialer-pass"
+              name="dialer-pass"
               type="password"
               required
-              autoComplete="current-password"
-              placeholder="••••••••"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              data-1p-ignore
+              data-lpignore="true"
+              readOnly
+              placeholder="Enter password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onFocus={(e) => {
+                e.currentTarget.removeAttribute("readonly");
+              }}
               className="input-premium"
             />
           </div>
@@ -101,7 +148,7 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !username}
           className="btn-primary mt-6 disabled:opacity-50"
         >
           {loading ? "Signing in…" : "Continue"}

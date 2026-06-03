@@ -84,6 +84,42 @@ body {
 }
 
 /* Login / standalone pages — not the dialer grid shell */
+.auth-autofill-trap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.auth-rep-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.auth-rep-chip {
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s;
+}
+
+.auth-rep-chip--active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
 .auth-page {
   display: flex;
   min-height: 100dvh;
@@ -906,6 +942,93 @@ body {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(0.35rem, 1.5vw, 0.5rem);
+}
+
+.wrap-up-banner {
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.recent-leads {
+  margin-top: 0.5rem;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.recent-leads-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.recent-leads-body {
+  padding: 0 0.7rem 0.65rem;
+}
+
+.recent-leads-hint {
+  margin: 0 0 0.45rem;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+
+.recent-leads-muted {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.recent-leads-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 9rem;
+  overflow-y: auto;
+}
+
+.recent-leads-item {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.45rem 0;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent-leads-item:first-child {
+  border-top: none;
+}
+
+.recent-leads-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.recent-leads-meta {
+  font-size: 0.6875rem;
+  font-family: ui-monospace, monospace;
+  color: var(--accent);
 }
 
 /* Lead card — compact queue snippet */

@@ -35,7 +35,7 @@ export function LeadCard({
       <section className="lead-card lead-card--empty glass">
         <p className="text-sm font-medium">Queue empty</p>
         <p className="mt-1 text-xs text-[var(--text-secondary)]">
-          Run the scraper or add leads in Supabase.
+          Run the scraper on the Mac Mini to refill your queue.
         </p>
       </section>
     );

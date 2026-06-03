@@ -74,6 +74,13 @@ export async function countNewLeads(rep: string): Promise<number> {
   return queueCount;
 }
 
+export async function listRecentLeads(rep: string, limit = 25): Promise<Lead[]> {
+  const { leads } = await storageFetch<{ leads: Lead[] }>(
+    `/leads/recent?rep=${encodeURIComponent(rep)}&limit=${limit}`,
+  );
+  return leads ?? [];
+}
+
 export async function updateLeadStatus(
   leadId: string,
   status: LeadStatus,

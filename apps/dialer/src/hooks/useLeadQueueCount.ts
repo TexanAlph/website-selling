@@ -8,7 +8,7 @@ export function useLeadQueueCount(active: boolean, testMode: boolean) {
 
   const refreshQueueCount = useCallback(async () => {
     if (testMode) {
-      setQueueCount(1);
+      setQueueCount(null);
       return;
     }
 

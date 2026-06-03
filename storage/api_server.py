@@ -73,6 +73,12 @@ def leads_count(rep: str) -> dict[str, int]:
     return {"queueCount": db.count_new_leads(rep)}
 
 
+@app.get("/leads/recent", dependencies=[Depends(require_auth)])
+def leads_recent(rep: str, limit: int = 25) -> dict[str, list]:
+    capped = max(1, min(limit, 50))
+    return {"leads": db.list_recent_leads(rep, capped)}
+
+
 class LeadPatch(BaseModel):
     status: str
     rep: str
