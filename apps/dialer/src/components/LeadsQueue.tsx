@@ -1,6 +1,8 @@
 "use client";
 
+import type { CallPhase } from "@/hooks/usePhoneCall";
 import type { Lead } from "@/lib/leads";
+import { CallStatusBar } from "./CallStatusBar";
 import type { SessionRecap } from "@/lib/calls/types";
 import type { InsightsPayload } from "@/hooks/useInsights";
 import { LeadCard } from "./LeadCard";
@@ -15,10 +17,15 @@ type Props = {
   queueCount: number | null;
   loading: boolean;
   calling: boolean;
+  callPhase: CallPhase;
+  callStatusLabel: string;
   deviceReady: boolean;
   testMode: boolean;
+  speakerOn: boolean;
+  speakerSupported: boolean;
   sessionId: string | null;
   error: string | null;
+  onToggleSpeaker: () => void;
   recap: SessionRecap | null;
   recapLoading: boolean;
   insights: InsightsPayload | null;
@@ -34,10 +41,15 @@ export function LeadsQueue({
   queueCount,
   loading,
   calling,
+  callPhase,
+  callStatusLabel,
   deviceReady,
   testMode,
+  speakerOn,
+  speakerSupported,
   sessionId,
   error,
+  onToggleSpeaker,
   recap,
   recapLoading,
   insights,
@@ -110,10 +122,23 @@ export function LeadsQueue({
           >
             {calling
               ? "End call"
-              : deviceReady
+              : testMode
                 ? "Call this lead"
-                : "Connecting phone…"}
+                : deviceReady
+                  ? "Call this lead"
+                  : "Connecting phone…"}
           </button>
+
+          {calling ? (
+            <CallStatusBar
+              callPhase={callPhase}
+              callStatusLabel={callStatusLabel}
+              speakerOn={speakerOn}
+              speakerSupported={speakerSupported}
+              testMode={testMode}
+              onToggleSpeaker={onToggleSpeaker}
+            />
+          ) : null}
 
           <div className="leads-outcomes">
             <button
@@ -159,6 +184,7 @@ export function LeadsQueue({
               leadId={lead?.id ?? null}
               nicheLabel={nicheLabel}
               active={calling}
+              testMode={testMode}
             />
           </div>
         </div>

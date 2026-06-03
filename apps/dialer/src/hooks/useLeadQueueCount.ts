@@ -1,12 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { isTestDialerMode } from "@/lib/test-dialer";
-
 const POLL_MS = 15_000;
 
-export function useLeadQueueCount(active: boolean) {
-  const testMode = isTestDialerMode();
+export function useLeadQueueCount(active: boolean, testMode: boolean) {
   const [queueCount, setQueueCount] = useState<number | null>(null);
 
   const refreshQueueCount = useCallback(async () => {

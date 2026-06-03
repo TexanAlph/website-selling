@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useCoachListening } from "@/hooks/useCoachListening";
-import { isTestDialerMode } from "@/lib/test-dialer";
 import { parseCounterDisplay } from "@/lib/coach/coach-display";
 import { stageLabel, type CallStage } from "@/lib/coach/call-stage";
 
@@ -18,9 +17,16 @@ type Props = {
   leadId: string | null;
   nicheLabel?: string | null;
   active: boolean;
+  testMode?: boolean;
 };
 
-export function CoachPanel({ sessionId, leadId, nicheLabel, active }: Props) {
+export function CoachPanel({
+  sessionId,
+  leadId,
+  nicheLabel,
+  active,
+  testMode = false,
+}: Props) {
   const [messages, setMessages] = useState<CoachMessage[]>([]);
   const [feedbackSent, setFeedbackSent] = useState<string | null>(null);
   const [feedbackMessageId, setFeedbackMessageId] = useState<string | null>(
@@ -50,7 +56,7 @@ export function CoachPanel({ sessionId, leadId, nicheLabel, active }: Props) {
       return;
     }
 
-    if (isTestDialerMode()) return;
+    if (testMode) return;
 
     let cancelled = false;
 
@@ -84,7 +90,7 @@ export function CoachPanel({ sessionId, leadId, nicheLabel, active }: Props) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [sessionId]);
+  }, [sessionId, testMode]);
 
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight });

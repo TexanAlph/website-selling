@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Lead, LeadStatus } from "@/lib/leads";
 import { OUTCOME_STATUSES } from "@/lib/leads";
-import { isTestDialerMode, MOCK_TEST_LEAD } from "@/lib/test-dialer";
+import { MOCK_TEST_LEAD } from "@/lib/test-dialer";
 import { usePhoneCall } from "@/hooks/usePhoneCall";
 import { useLeadQueueCount } from "@/hooks/useLeadQueueCount";
 import { useSessionRecap } from "@/hooks/useSessionRecap";
@@ -13,8 +13,6 @@ import { hapticOutcome } from "@/lib/haptics";
 import type { DialerUsername } from "@/lib/dialer-auth";
 import { PhoneKeypad } from "./PhoneKeypad";
 import { LeadsQueue } from "./LeadsQueue";
-
-const testMode = isTestDialerMode();
 
 type Tab = "keypad" | "queue";
 
@@ -39,7 +37,9 @@ export function Dialer() {
   const [recapSessionId, setRecapSessionId] = useState<string | null>(null);
 
   const phone = usePhoneCall();
-  const { queueCount, setQueueCount } = useLeadQueueCount(true);
+  const testMode = phone.testMode;
+  const configReady = phone.config !== null;
+  const { queueCount, setQueueCount } = useLeadQueueCount(true, testMode);
   const { recap, loading: recapLoading } = useSessionRecap(recapSessionId);
   const {
     data: insights,
@@ -59,6 +59,7 @@ export function Dialer() {
   }, []);
 
   const fetchNextLead = useCallback(async () => {
+    if (!configReady) return;
     if (testMode) {
       setLead({ ...MOCK_TEST_LEAD, status: "New" });
       setQueueCount(1);
@@ -81,11 +82,12 @@ export function Dialer() {
       setLead(null);
     }
     setLoading(false);
-  }, [setQueueCount]);
+  }, [setQueueCount, testMode, configReady]);
 
   useEffect(() => {
+    if (!configReady) return;
     void fetchNextLead();
-  }, [fetchNextLead]);
+  }, [fetchNextLead, configReady]);
 
   const showRecapForSession = (sessionId: string | null) => {
     if (sessionId && !testMode) setRecapSessionId(sessionId);
@@ -265,21 +267,31 @@ export function Dialer() {
             testMode={phone.testMode}
             deviceReady={phone.deviceReady}
             calling={phone.calling}
+            callPhase={phone.callPhase}
+            callStatusLabel={phone.callStatusLabel}
+            speakerOn={phone.speakerOn}
+            speakerSupported={phone.speakerSupported}
             sessionId={phone.sessionId}
             error={error}
             onStartCall={startKeypadCall}
             onEndCall={endKeypadCall}
+            onToggleSpeaker={() => void phone.toggleSpeaker()}
           />
         ) : (
           <LeadsQueue
             lead={lead}
             queueCount={queueCount}
-            loading={loading}
+            loading={loading || !configReady}
             calling={phone.calling}
+            callPhase={phone.callPhase}
+            callStatusLabel={phone.callStatusLabel}
             deviceReady={phone.deviceReady}
             testMode={phone.testMode}
+            speakerOn={phone.speakerOn}
+            speakerSupported={phone.speakerSupported}
             sessionId={phone.sessionId}
             error={error}
+            onToggleSpeaker={() => void phone.toggleSpeaker()}
             recap={recap}
             recapLoading={recapLoading}
             insights={insights}

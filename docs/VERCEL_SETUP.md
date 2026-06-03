@@ -41,7 +41,7 @@ Users: `david` and `x`. Password in `DIALER_PASSWORD`.
 ## 5. Twilio Voice URL
 
 ```
-https://website-selling-nu.vercel.app/api/twilio/voice
+https://website-selling-101.vercel.app/api/twilio/voice
 ```
 
 ## 6. Smoke test
@@ -52,4 +52,4 @@ https://website-selling-nu.vercel.app/api/twilio/voice
 
 ## Production URL
 
-- **Production:** `https://website-selling-nu.vercel.app`
+- **Production:** `https://website-selling-101.vercel.app` (use your Vercel **Domains** tab if this changes)

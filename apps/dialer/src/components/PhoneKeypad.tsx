@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { formatDialDisplay, toOutboundE164 } from "@/lib/phone";
+import type { CallPhase } from "@/hooks/usePhoneCall";
+import { CallStatusBar } from "./CallStatusBar";
 import { CoachPanel } from "./CoachPanel";
 
 const KEYS: { digit: string; sub?: string }[] = [
@@ -37,20 +39,30 @@ type Props = {
   testMode: boolean;
   deviceReady: boolean;
   calling: boolean;
+  callPhase: CallPhase;
+  callStatusLabel: string;
+  speakerOn: boolean;
+  speakerSupported: boolean;
   sessionId: string | null;
   error: string | null;
   onStartCall: (e164: string) => void;
   onEndCall: () => void;
+  onToggleSpeaker: () => void;
 };
 
 export function PhoneKeypad({
   testMode,
   deviceReady,
   calling,
+  callPhase,
+  callStatusLabel,
+  speakerOn,
+  speakerSupported,
   sessionId,
   error,
   onStartCall,
   onEndCall,
+  onToggleSpeaker,
 }: Props) {
   const [raw, setRaw] = useState("");
 
@@ -83,14 +95,23 @@ export function PhoneKeypad({
     return (
       <div className="keypad-shell min-h-0">
         <div className="keypad-display">
-          <span className="mb-1 inline-flex items-center gap-1.5 text-xs font-medium text-[var(--accent)]">
-            <span className="call-active-ring inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
-            On call
-          </span>
+          <CallStatusBar
+            callPhase={callPhase}
+            callStatusLabel={callStatusLabel}
+            speakerOn={speakerOn}
+            speakerSupported={speakerSupported}
+            testMode={testMode}
+            onToggleSpeaker={onToggleSpeaker}
+          />
           <p className="dial-display dial-display--active">{display}</p>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden">
-          <CoachPanel sessionId={sessionId} leadId={null} active={calling} />
+          <CoachPanel
+            sessionId={sessionId}
+            leadId={null}
+            active={calling}
+            testMode={testMode}
+          />
         </div>
         <div className="keypad-actions shrink-0 pt-2">
           <span />
