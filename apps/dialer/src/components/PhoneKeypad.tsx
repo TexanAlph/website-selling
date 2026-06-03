@@ -94,7 +94,7 @@ export function PhoneKeypad({
         </p>
       )}
 
-      <KeypadCoachToggle />
+      <KeypadCoachToggle mode="default" />
 
       <div className="keypad-grid min-h-0 flex-1 content-center overflow-hidden">
         {KEYS.map(({ digit, sub }) => (

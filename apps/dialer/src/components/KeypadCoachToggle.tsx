@@ -1,20 +1,26 @@
 "use client";
 
-import { useKeypadCoachEnabled } from "@/hooks/useKeypadCoachEnabled";
+import { useKeypadCoachDefault } from "@/hooks/useKeypadCoachDefault";
 
 type Props = {
-  /** Lead calls always use coach — show note instead of a control */
   leadCallActive?: boolean;
   compact?: boolean;
+  /** Idle keypad: sets default for the next dial. In-call: this call only. */
+  mode: "default" | "thisCall";
+  thisCallOn?: boolean;
+  onThisCallChange?: (on: boolean) => void;
 };
 
 export function KeypadCoachToggle({
   leadCallActive = false,
   compact = false,
+  mode,
+  thisCallOn = true,
+  onThisCallChange,
 }: Props) {
-  const { enabled, setEnabled, ready } = useKeypadCoachEnabled();
+  const { defaultOn, setDefaultOn, ready } = useKeypadCoachDefault();
 
-  if (!ready) return null;
+  if (!ready && mode === "default") return null;
 
   if (leadCallActive) {
     return (
@@ -24,24 +30,37 @@ export function KeypadCoachToggle({
     );
   }
 
+  const checked = mode === "thisCall" ? thisCallOn : defaultOn;
+  const onChange = (on: boolean) => {
+    if (mode === "thisCall") onThisCallChange?.(on);
+    else setDefaultOn(on);
+  };
+
+  const sub =
+    mode === "thisCall"
+      ? compact
+        ? "This call only — off saves OpenRouter"
+        : "This call only"
+      : "Default for your next keypad call";
+
   return (
     <label
       className={`keypad-coach-toggle${compact ? " keypad-coach-toggle--compact" : ""}`}
     >
       <span className="keypad-coach-toggle__text">
         <span className="keypad-coach-toggle__label">AI coach</span>
-        <span className="keypad-coach-toggle__sub">
-          {compact
-            ? "Tap off anytime — stops Say now & OpenRouter"
-            : "Say now on all tabs during keypad calls"}
-        </span>
+        <span className="keypad-coach-toggle__sub">{sub}</span>
       </span>
       <input
         type="checkbox"
         className="keypad-coach-toggle__input"
-        checked={enabled}
-        onChange={(e) => setEnabled(e.target.checked)}
-        aria-label="AI coach on keypad calls"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        aria-label={
+          mode === "thisCall"
+            ? "AI coach for this call"
+            : "Default AI coach for next keypad call"
+        }
       />
     </label>
   );

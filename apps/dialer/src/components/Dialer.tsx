@@ -13,7 +13,7 @@ import { hapticOutcome } from "@/lib/haptics";
 import type { DialerUsername } from "@/lib/dialer-auth";
 import { formatDialDisplay, phoneToE164 } from "@/lib/phone";
 import { useMissedCallBadge } from "@/hooks/useMissedCallBadge";
-import { useKeypadCoachEnabled } from "@/hooks/useKeypadCoachEnabled";
+import { useKeypadCoachDefault } from "@/hooks/useKeypadCoachDefault";
 import { PhoneKeypad } from "./PhoneKeypad";
 import { LeadsQueue } from "./LeadsQueue";
 import { HistoryView } from "./HistoryView";
@@ -51,7 +51,8 @@ export function Dialer() {
   );
 
   const phone = usePhoneCall();
-  const { enabled: keypadCoachEnabled } = useKeypadCoachEnabled();
+  const { defaultOn: keypadCoachDefault } = useKeypadCoachDefault();
+  const [keypadCoachThisCall, setKeypadCoachThisCall] = useState(true);
   const testMode = phone.testMode;
   useMissedCallBadge(testMode);
   const configReady = phone.config !== null;
@@ -228,6 +229,7 @@ export function Dialer() {
 
   const startOutboundCall = (e164: string) => {
     setActiveCallSource("keypad");
+    setKeypadCoachThisCall(keypadCoachDefault);
     const digits = e164.replace(/\D/g, "");
     setKeypadDialDisplay(
       digits.length > 0 ? formatDialDisplay(digits) : e164,
@@ -276,7 +278,7 @@ export function Dialer() {
   const showLiveCoach = Boolean(
     onCall &&
       (activeCallSource === "queue" ||
-        (activeCallSource === "keypad" && keypadCoachEnabled)),
+        (activeCallSource === "keypad" && keypadCoachThisCall)),
   );
   const coachLeadId =
     activeCallSource === "queue" ? (lead?.id ?? null) : null;
@@ -347,6 +349,8 @@ export function Dialer() {
               onEndCall={endActiveCall}
               onToggleSpeaker={() => void phone.toggleSpeaker()}
               onToggleMute={() => phone.toggleMute()}
+              keypadCoachThisCall={keypadCoachThisCall}
+              onKeypadCoachThisCallChange={setKeypadCoachThisCall}
             />
             {showLiveCoach ? (
               <div className="in-call-coach-pane">
@@ -362,9 +366,8 @@ export function Dialer() {
               <div className="keypad-coach-off glass in-call-coach-pane">
                 <p className="keypad-coach-off__title">Regular call</p>
                 <p className="keypad-coach-off__hint">
-                  AI coach is off for keypad calls — no OpenRouter usage. Turn
-                  it on under Keypad before dialing if you want Say now on all
-                  tabs.
+                  AI coach is off for this call. Turn it on in the toolbar
+                  above, or set the default on the Keypad tab before you dial.
                 </p>
               </div>
             )}

@@ -18,6 +18,8 @@ type Props = {
   onEndCall: () => void;
   onToggleSpeaker: () => void;
   onToggleMute: () => void;
+  keypadCoachThisCall: boolean;
+  onKeypadCoachThisCallChange: (on: boolean) => void;
 };
 
 export function InCallToolbar({
@@ -33,6 +35,8 @@ export function InCallToolbar({
   onEndCall,
   onToggleSpeaker,
   onToggleMute,
+  keypadCoachThisCall,
+  onKeypadCoachThisCallChange,
 }: Props) {
   return (
     <div className="in-call-toolbar glass">
@@ -70,7 +74,10 @@ export function InCallToolbar({
         onToggleMute={onToggleMute}
       />
       <KeypadCoachToggle
+        mode="thisCall"
         leadCallActive={callSource === "queue"}
+        thisCallOn={keypadCoachThisCall}
+        onThisCallChange={onKeypadCoachThisCallChange}
         compact
       />
     </div>

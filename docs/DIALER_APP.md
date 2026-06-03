@@ -6,7 +6,7 @@ Mobile-first PWA at `apps/dialer` (Vercel). Reps sign in with **`david`** or **`
 
 | Tab | What you do here |
 |-----|------------------|
-| **Keypad** | Type a number, **Call** / **End**. **AI coach** toggle (saved on device): for **keypad-started** calls, off = no OpenRouter; on = live coach. |
+| **Keypad** | **AI coach** has two levels: (1) **Default for next keypad call** on the Keypad tab before you dial; (2) **This call only** in the toolbar while on a keypad call — turning off mid-call does not change your default for the next dial. |
 | **During any live call** | Toolbar + **Say now** coach stay visible on **Keypad, Leads, and History** until you hang up. Lead calls always use coach; keypad calls respect the toggle. |
 | **Leads** | See **N leads ready**, current lead card, **Call this lead**, outcome buttons, post-call wrap-up. One line under the queue shows **daily tip** and **last scraper refill** (no extra dropdown). |
 | **History** | **Missed calls** (voicemail + **Call back**), **Past leads** (tap a row → opens that lead on the Leads tab). Badge when unread missed calls exist. |
