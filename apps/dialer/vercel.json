@@ -3,10 +3,6 @@
     {
       "path": "/api/cron/analyze",
       "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/cron/reset-calling",
-      "schedule": "*/30 * * * *"
     }
   ]
 }
