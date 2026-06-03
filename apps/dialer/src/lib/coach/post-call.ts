@@ -5,8 +5,8 @@ import {
   markSessionAnalysis,
 } from "@/lib/calls/sessions";
 import { bumpPlaybookOutcomes, upsertPlaybookEntry } from "./playbook";
-import { geminiText, parseJsonBlock } from "./gemini-shared";
-import { getCoachStackConfig } from "./config";
+import { llmText, parseJsonBlock } from "./llm-client";
+import { requireBatchLlm } from "./config";
 import { buildPostCallSystemPrompt } from "./sales-sop";
 import * as storage from "@/lib/storage/client";
 
@@ -24,8 +24,7 @@ type PlaybookExtract = {
 };
 
 export async function runPostCallSwarm(sessionId: string) {
-  const stack = getCoachStackConfig();
-  const model = stack.geminiModel;
+  const batch = requireBatchLlm();
 
   await markSessionAnalysis(sessionId, { analysis_status: "processing" });
 
@@ -52,10 +51,10 @@ export async function runPostCallSwarm(sessionId: string) {
     ].join("\n");
 
     const [summaryRaw, scoreRaw, playbookRaw] = await Promise.all([
-      geminiText(model, buildPostCallSystemPrompt("summarize"), context),
-      geminiText(model, buildPostCallSystemPrompt("score"), context),
+      llmText(batch, buildPostCallSystemPrompt("summarize"), context),
+      llmText(batch, buildPostCallSystemPrompt("score"), context),
       outcome === "Interested/Closed"
-        ? geminiText(model, buildPostCallSystemPrompt("playbook"), context)
+        ? llmText(batch, buildPostCallSystemPrompt("playbook"), context)
         : Promise.resolve(""),
     ]);
 

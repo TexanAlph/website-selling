@@ -1,6 +1,7 @@
-import { geminiText } from "./gemini-shared";
+import { llmText } from "./llm-client";
+import { requireLiveLlm } from "./config";
 import {
-  buildCoachContext,
+  buildLiveCoachContext,
   type BuiltCoachContext,
   type CoachContextInput,
 } from "./sales-sop";
@@ -9,11 +10,11 @@ export type { BuiltCoachContext, CoachContextInput };
 
 export async function generateCoachLine(
   input: CoachContextInput,
-  modelName: string,
 ): Promise<BuiltCoachContext & { line: string }> {
-  const ctx = buildCoachContext(input);
+  const ctx = buildLiveCoachContext(input);
+  const live = requireLiveLlm();
 
-  const text = await geminiText(modelName, ctx.systemPrompt, ctx.userPrompt);
+  const text = await llmText(live, ctx.systemPrompt, ctx.userPrompt, 160);
 
   return {
     ...ctx,
@@ -26,12 +27,8 @@ export async function generateCoachLine(
 /** @deprecated Use generateCoachLine */
 export async function generateCounterObjection(
   transcript: string,
-  modelName: string,
   playbookContext = "",
 ): Promise<string> {
-  const result = await generateCoachLine(
-    { transcript, playbookContext },
-    modelName,
-  );
+  const result = await generateCoachLine({ transcript, playbookContext });
   return result.line;
 }

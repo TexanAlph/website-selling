@@ -5,15 +5,20 @@ export async function GET() {
   const stack = getCoachStackConfig();
   return NextResponse.json({
     stt: stack.stt,
-    llm: stack.llm,
-    geminiModel: stack.geminiModel,
+    liveLlm: stack.liveLlm,
+    batchLlm: stack.batchLlm,
     labels: stack.labels,
     freeTierNotes: {
       stt:
         stack.stt === "webspeech"
-          ? "Uses built-in Safari speech — $0, no API key."
-          : "Uses Deepgram — new accounts get ~$200 free credit.",
-      llm: "Gemini via Google AI Studio — generous free tier for Flash models.",
+          ? "Safari speech — $0, no API key."
+          : "Deepgram — usage-based after free credits.",
+      liveLlm:
+        stack.liveLlm.provider === "openrouter"
+          ? "OpenRouter + DeepSeek for live coach (pay-per-token, no Gemini rate limits)."
+          : "Gemini for live coach — may hit free-tier RPM on long calls.",
+      batchLlm:
+        "Gemini AI Studio free tier — post-call analysis & nightly insights only.",
     },
   });
 }

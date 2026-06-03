@@ -61,17 +61,14 @@ export async function runCoachPipeline(input: CoachRunInput) {
     content: trimmed.slice(-500),
   });
 
-  const coached = await generateCoachLine(
-    {
-      transcript: trimmed,
-      niche,
-      businessName,
-      hasWebsite,
-      playbookContext,
-      previousStage,
-    },
-    stack.geminiModel,
-  );
+  const coached = await generateCoachLine({
+    transcript: trimmed,
+    niche,
+    businessName,
+    hasWebsite,
+    playbookContext,
+    previousStage,
+  });
 
   const counterContent = `[${coached.stage}] ${coached.line}`;
 

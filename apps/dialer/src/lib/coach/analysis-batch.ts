@@ -1,6 +1,6 @@
 import { runPostCallSwarm } from "./post-call";
-import { geminiText, parseJsonBlock } from "./gemini-shared";
-import { getCoachStackConfig } from "./config";
+import { llmText, parseJsonBlock } from "./llm-client";
+import { requireBatchLlm } from "./config";
 import { normalizeNiche } from "@/lib/calls/niche";
 import { upsertPlaybookEntry } from "./playbook";
 import { buildDailyAnalystPrompt } from "./sales-sop";
@@ -35,7 +35,7 @@ export async function runPendingCallAnalysis(): Promise<BatchResult> {
 }
 
 async function runDailyInsightReport(): Promise<boolean> {
-  const stack = getCoachStackConfig();
+  const batch = requireBatchLlm();
   const today = new Date().toISOString().slice(0, 10);
   const since = new Date(Date.now() - 7 * 86400000).toISOString();
 
@@ -73,7 +73,7 @@ async function runDailyInsightReport(): Promise<boolean> {
     samples,
   ].join("\n");
 
-  const raw = await geminiText(stack.geminiModel, buildDailyAnalystPrompt(), payload);
+  const raw = await llmText(batch, buildDailyAnalystPrompt(), payload);
   const parsed = parseJsonBlock<Record<string, unknown>>(raw);
   const content = parsed ?? { raw, generated_at: new Date().toISOString() };
 

@@ -155,6 +155,51 @@ export function buildStageSection(stage: CallStage): string {
   return stagePlaybook(getSalesConfig())[stage].trim();
 }
 
+/** Compact prompt for live coach (OpenRouter) — same SOP rules, less tokens per request. */
+export function buildLiveCoachSystemPrompt(stage: CallStage): string {
+  const cfg = getSalesConfig();
+  return `
+Live cold-call coach. Output ONE line the rep says next (max 2 short sentences).
+Offer: ${cfg.offerSummary} — ${cfg.offerPrice} one-time. ${cfg.targetGeo}.
+${COMPLIANCE}
+Stage: ${stageLabel(stage)}
+${buildStageSection(stage)}
+${objectionQuickRef(cfg)}
+`.trim();
+}
+
+export function buildLiveCoachContext(input: CoachContextInput): BuiltCoachContext {
+  const stage = detectCallStage(input.transcript, input.previousStage);
+  const niche = input.niche?.trim() || "local service business";
+  const business = input.businessName?.trim() || "this business";
+  const websiteNote = input.hasWebsite
+    ? "May have weak site — probe mobile + calls."
+    : "No website — Google/mobile missed-jobs angle.";
+
+  const systemPrompt = [
+    buildLiveCoachSystemPrompt(stage),
+    input.playbookContext?.trim()
+      ? `Playbook hits:\n${input.playbookContext.trim().slice(0, 500)}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const userPrompt = [
+    `${stageLabel(stage)} · ${niche} · ${business}. ${websiteNote}`,
+    "Transcript:",
+    input.transcript.trim().slice(-700),
+    "Next line only:",
+  ].join("\n");
+
+  return {
+    stage,
+    stageLabel: stageLabel(stage),
+    systemPrompt,
+    userPrompt,
+  };
+}
+
 export function buildCoachContext(input: CoachContextInput): BuiltCoachContext {
   const cfg = getSalesConfig();
   const stage = detectCallStage(input.transcript, input.previousStage);

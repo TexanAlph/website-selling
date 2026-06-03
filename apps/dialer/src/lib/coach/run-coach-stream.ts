@@ -1,14 +1,14 @@
-import { getCoachStackConfig } from "./config";
-import { geminiTextStream } from "./gemini-shared";
+import { getCoachStackConfig, requireLiveLlm } from "./config";
+import { llmText, llmTextStream } from "./llm-client";
 import { formatPlaybookContext, getPlaybookForNiche } from "./playbook";
 import { fetchLeadContext } from "@/lib/calls/sessions";
 import { normalizeNiche } from "@/lib/calls/niche";
 import type { CallStage } from "./call-stage";
 import { parseCounterDisplay } from "./coach-display";
 import {
-  buildCoachContext,
-  buildMasterSystemPrompt,
-  type CoachContextInput,
+  buildLiveCoachContext,
+  buildLiveCoachSystemPrompt,
+  type BuiltCoachContext,
 } from "./sales-sop";
 import { hasObjectionCue } from "./objection-cues";
 import {
@@ -30,7 +30,7 @@ async function loadCoachContext(
   transcript: string,
   prospectOnly?: string,
 ): Promise<{
-  ctx: ReturnType<typeof buildCoachContext>;
+  ctx: BuiltCoachContext;
   stack: ReturnType<typeof getCoachStackConfig>;
   objectionMode: boolean;
 }> {
@@ -84,34 +84,30 @@ async function loadCoachContext(
     }
   }
 
-  const coachInput: CoachContextInput = {
+  const ctx = buildLiveCoachContext({
     transcript: trimmed,
     niche,
     businessName,
     hasWebsite,
     playbookContext,
     previousStage: objectionMode ? "objection" : previousStage,
-  };
+  });
 
-  if (objectionMode) {
-    coachInput.previousStage = "objection";
-  }
-
-  const ctx = buildCoachContext(coachInput);
   if (objectionMode) {
     ctx.stage = "objection";
     ctx.systemPrompt = [
-      buildMasterSystemPrompt(),
-      "STAGE: OBJECTION — respond in ONE short line the rep says next. Max 2 sentences. Calm, local, no hype.",
-      playbookContext,
+      buildLiveCoachSystemPrompt("objection"),
+      playbookContext?.trim()
+        ? `Playbook:\n${playbookContext.trim().slice(0, 400)}`
+        : "",
     ]
       .filter(Boolean)
       .join("\n\n");
     ctx.userPrompt = [
-      "Prospect just objected. Give the rep their next line only.",
+      "Objection — next line only.",
       prospectOnly
-        ? `Prospect said: ${prospectOnly.slice(-400)}`
-        : `Context: ${trimmed.slice(-500)}`,
+        ? `Prospect: ${prospectOnly.slice(-400)}`
+        : trimmed.slice(-500),
     ].join("\n");
   }
 
@@ -131,7 +127,7 @@ export async function* streamCoachPipeline(
 
   const { sessionId, leadId } = input;
   const transcript = trimmed || input.prospectOnly || "";
-  const { ctx, stack } = await loadCoachContext(
+  const { ctx } = await loadCoachContext(
     sessionId,
     leadId,
     transcript,
@@ -146,10 +142,12 @@ export async function* streamCoachPipeline(
   });
 
   let full = "";
-  for await (const token of geminiTextStream(
-    stack.geminiModel,
+  const live = requireLiveLlm();
+  for await (const token of llmTextStream(
+    live,
     ctx.systemPrompt,
     ctx.userPrompt,
+    160,
   )) {
     full += token;
     yield { type: "token", text: token };
@@ -176,7 +174,6 @@ export async function* streamCoachPipeline(
 }
 
 export async function warmCoachModel(): Promise<void> {
-  const stack = getCoachStackConfig();
-  const { geminiText } = await import("./gemini-shared");
-  await geminiText(stack.geminiModel, "Reply with OK only.", "OK");
+  const live = requireLiveLlm();
+  await llmText(live, "Reply with OK only.", "OK", 8);
 }

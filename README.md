@@ -97,30 +97,42 @@ Three tabs — details in **[docs/DIALER_APP.md](docs/DIALER_APP.md)**:
 | **Leads** | Queue count, call next lead, outcomes, post-call wrap-up, one-line daily tip + scraper status |
 | **History** | Missed calls (voicemail, call back), past leads (tap reopens on Leads) |
 
-- **Coach** — Web Speech (default) or Deepgram → Gemini counters during calls.
+- **Coach** — Web Speech (default) or Deepgram → **DeepSeek (OpenRouter)** live lines; **Gemini** after the call.
 - **Outcomes** — Wrong number / Not interested / Interested → storage API → next `New` lead.
 - **Inbound** — When the app is closed, Twilio records voicemail; list appears on **History** after storage API is up to date.
+
+## AI coach (split LLM)
+
+All LLM API keys go on **Vercel** (Next.js API routes). The Mac Mini only needs storage + scraper keys.
+
+| When | Provider | Env |
+|------|----------|-----|
+| **Live calls** (streaming coach lines) | OpenRouter → DeepSeek | `OPENROUTER_API_KEY`, `OPENROUTER_LIVE_MODEL` |
+| **Post-call + nightly** (summary, score, daily tip) | Gemini AI Studio | `GEMINI_API_KEY`, `GEMINI_MODEL` (default `gemini-2.5-flash-lite`) |
+
+Live coach uses a **shorter SOP prompt** (same rules, fewer tokens per nudge). Details: **[docs/DIALER_APP.md](docs/DIALER_APP.md)** and **[docs/FREE_STACK.md](docs/FREE_STACK.md)**.
 
 ## Call learning loop
 
 | Step | What happens |
 |------|----------------|
 | Call start | `POST /api/calls/session` — `session_id`, `lead_id`, niche |
-| During call | Transcripts + counters → storage API `coach_messages` |
+| During call | Transcripts + counters → storage API; **OpenRouter/DeepSeek** for live lines |
 | Outcome / hang-up | `PATCH /api/calls/session/:id` — transcript, outcome, duration |
-| Post-call | Gemini analysis → session + playbook (Vercel cron or `nightly_analyze.py`) |
+| Post-call | **Gemini** analysis → session + playbook (Vercel cron or `nightly_analyze.py`) |
 | Nightly | `/api/cron/analyze` — backlog + `daily_insights` |
 
-Requires `GEMINI_API_KEY` and `STORAGE_API_*` on Vercel.
+Requires `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, and `STORAGE_API_*` on Vercel.
 
 ## AI / cost notes
 
-See **[docs/FREE_STACK.md](docs/FREE_STACK.md)** (some rows still mention Supabase historically; production uses **Mac Mini SQLite**).
+See **[docs/FREE_STACK.md](docs/FREE_STACK.md)**.
 
 | Variable | Default | Notes |
 |----------|---------|--------|
 | `COACH_STT_PROVIDER` | `webspeech` | Free on Safari |
-| `GEMINI_API_KEY` | `gemini-2.0-flash` | Coach + post-call |
+| `OPENROUTER_LIVE_MODEL` | `deepseek/deepseek-chat-v3-0324` | Live coach only |
+| `GEMINI_MODEL` | `gemini-2.5-flash-lite` | Batch analysis (free tier friendly) |
 
 ## Security checklist
 

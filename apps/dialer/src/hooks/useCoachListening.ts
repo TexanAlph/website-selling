@@ -6,7 +6,7 @@ import { hasObjectionCue } from "@/lib/coach/objection-cues";
 
 type CoachStack = {
   stt: SttProvider;
-  labels: { stt: string; llm: string };
+  labels: { stt: string; liveLlm: string; batchLlm: string };
 };
 
 const SPEECH_PAUSE_MS = 500;
@@ -51,7 +51,11 @@ export function useCoachListening(
       .catch(() => {
         setStack({
           stt: "webspeech",
-          labels: { stt: "Safari speech (free)", llm: "Gemini" },
+          labels: {
+            stt: "Safari speech (free)",
+            liveLlm: "Live coach",
+            batchLlm: "Gemini batch",
+          },
         });
       });
   }, []);

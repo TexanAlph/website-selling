@@ -23,6 +23,18 @@ Shows **“5 leads ready”** (not a “5/100” cap display). Secondary text on
 
 Restart **`storage/api_server.py`** on the Mac Mini after pulling repo changes that add inbound routes.
 
+## AI coach (two providers)
+
+| Phase | Provider | Where the key lives |
+|-------|----------|---------------------|
+| **On a live call** (Say now lines) | OpenRouter → DeepSeek (`OPENROUTER_LIVE_MODEL`) | **Vercel** env only |
+| **After the call** (summary, score, playbook) | Gemini (`GEMINI_MODEL`, default `gemini-2.5-flash-lite`) | **Vercel** env only |
+| **Nightly tip** | Same Gemini batch key | Vercel cron |
+
+Live coach uses a **compact SOP prompt** (same compliance and stage rules, fewer tokens). Coaching quality should match before; you mainly avoid Gemini rate limits and repeated huge prompts.
+
+**Not on Mac Mini:** OpenRouter and Gemini keys are only read by Next.js API routes on Vercel.
+
 ## Twilio / phone quirks
 
 | Topic | Behavior |

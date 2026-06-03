@@ -14,7 +14,10 @@
 |----------|---------|
 | `STORAGE_API_URL` | Mac Mini API (tunnel) |
 | `STORAGE_API_SECRET` | API auth |
-| `GEMINI_API_KEY` | Coach + post-call analysis |
+| `OPENROUTER_API_KEY` | Live coach during calls |
+| `OPENROUTER_LIVE_MODEL` | e.g. `deepseek/deepseek-chat-v3-0324` |
+| `GEMINI_API_KEY` | Post-call + nightly analysis only |
+| `GEMINI_MODEL` | e.g. `gemini-2.5-flash-lite` (not deprecated `gemini-2.0-flash`) |
 | `DIALER_PASSWORD` / `DIALER_AUTH_SECRET` | App login (`david`, `roslyn`) |
 | Twilio vars | Calling + webhooks |
 

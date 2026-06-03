@@ -1,55 +1,63 @@
 # Free-first stack choices
 
-This project defaults to **$0 recurring cost** for AI coach features. You only pay for what you cannot avoid: **phone minutes** (Twilio) and **Maps lookups** (Google Places).
+Defaults minimize recurring cost. You still pay for **Twilio minutes** and **Google Places** on the Mac Mini.
 
 ## Recommended stack (what we ship)
 
-| Layer | Default (free) | Paid upgrade | Why |
-|-------|----------------|--------------|-----|
-| **Database** | Supabase Free | Pro $25/mo | 500MB DB, Realtime, Auth — enough for 2 reps |
+| Layer | Default | Paid upgrade | Why |
+|-------|---------|--------------|-----|
+| **Database** | Mac Mini SQLite + tunnel | — | No Supabase required |
 | **Hosting** | Vercel Hobby | Pro if team grows | Next.js dialer |
-| **STT (speech-to-text)** | **Safari Web Speech API** | Deepgram (optional) | $0, no key; works on iPhone when mic allowed |
-| **LLM coach** | **Gemini 2.0 Flash** (AI Studio) | — | Generous free RPM on [aistudio.google.com](https://aistudio.google.com) |
-| **Voice calls** | Twilio pay-as-you-go | — | No free PSTN; ~$0.013/min US outbound |
-| **Lead scrape** | Google Places (monthly credit) | — | Mac Mini only; cache reduces API calls |
+| **STT** | **Safari Web Speech** | Deepgram (optional) | $0 on iPhone |
+| **Live LLM** | **OpenRouter + DeepSeek V3** | — | High RPM during calls; ~$0.25–1/M input tokens |
+| **Batch LLM** | **Gemini 2.5 Flash-Lite** (AI Studio) | Paid if over free quota | Post-call + nightly only (low RPM) |
+| **Voice** | Twilio | — | ~$0.013/min US outbound |
+| **Leads** | Google Places (Mac Mini) | — | Scraper with cache |
 
-## What we did *not* choose (and why)
+## Where API keys live
 
-| Option | Verdict |
-|--------|---------|
-| **Twilio Media Streams → Deepgram live WS** | Best audio quality, but needs a **persistent WebSocket server** (not ideal on Vercel serverless). We use **chunked MediaRecorder → Deepgram prerecorded** instead when you add a key. |
-| **OpenAI Realtime / GPT-4o voice** | Excellent, not free |
-| **Vapi / Bland AI** | Built for AI agents, not human dialers; removed from this repo |
-| **AssemblyAI** | Good free tier; Deepgram Nova is slightly better for telephony-style audio |
+| Key | Machine | Used for |
+|-----|---------|----------|
+| `STORAGE_API_*` | **Vercel + Mac Mini** | Leads, sessions, coach messages |
+| `OPENROUTER_API_KEY` | **Vercel only** | Live coach during calls |
+| `GEMINI_API_KEY` | **Vercel only** | Post-call swarm + nightly `/api/cron/analyze` |
+| `GOOGLE_MAPS_API_KEY` | **Mac Mini only** | Scraper |
+| `TWILIO_*` | **Vercel** | Voice SDK + webhooks |
+
+Google Cloud billing for Maps is separate from Gemini AI Studio — same Gmail does **not** mean one bill or one free tier.
 
 ## Environment toggles
 
 ```bash
-# $0 — Safari transcribes in the browser (default)
+# Live coach (Vercel)
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_LIVE_MODEL=deepseek/deepseek-chat-v3-0324
+
+# Batch analysis (Vercel) — use a current Flash model, not deprecated 2.0
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash-lite
+
+# Speech ($0 default)
 COACH_STT_PROVIDER=webspeech
 
-# Auto: use Deepgram if DEEPGRAM_API_KEY is set (~$200 free credit for new accounts)
-COACH_STT_PROVIDER=auto
-
-# Force Deepgram chunked mic STT (Vercel-compatible)
-COACH_STT_PROVIDER=deepgram
-DEEPGRAM_API_KEY=...
-
-# Gemini — free tier at Google AI Studio
-GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-2.0-flash
+# Optional: force live coach back to Gemini (may 429 on long calls)
+# LIVE_LLM_PROVIDER=gemini
 ```
 
-## Cost estimate (2 reps, light usage)
+## Cost estimate (2 reps)
 
-- Supabase + Vercel + Gemini + Web Speech: **$0/mo**
-- Twilio: **~$15–40/mo** depending on call volume (biggest line item)
-- Google Places scraper: often **$0–10/mo** with 7-day search cache
-- Deepgram (optional): **$0** until free credits used, then usage-based
+| Item | ~$/month |
+|------|----------|
+| Vercel + storage tunnel + Gemini batch (free tier) | $0 |
+| OpenRouter live coach (medium calling) | $8–35 |
+| Twilio | $15–40 |
+| Google Places scraper | $0–10 |
+| Deepgram (optional) | $0 until credits used |
 
-## Setup order (minimize spend)
+**Gemini free tier** fits batch analysis well. **Live coach** was moved off Gemini to avoid free-tier **requests/minute** limits during active calls.
 
-1. Supabase + Vercel + Gemini key only → coach works free.
-2. Twilio number + TwiML when ready to dial.
-3. Google Places key on Mac Mini for scraping.
-4. Deepgram key only if Safari STT quality isn’t enough on noisy calls.
+## Setup order
+
+1. Vercel: `STORAGE_API_*`, `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, login + Twilio when ready.
+2. Mac Mini: storage API, tunnel, scraper — no OpenRouter/Gemini on the Mini.
+3. Deepgram only if Safari STT is too noisy.
