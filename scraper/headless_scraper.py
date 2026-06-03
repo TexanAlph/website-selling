@@ -72,11 +72,7 @@ AREAS = [
 DEFAULT_SEARCHES_PER_RUN = 40
 SEARCHES_PER_RUN = int(os.getenv("SEARCHES_PER_RUN", str(DEFAULT_SEARCHES_PER_RUN)))
 TEXT_SEARCH_MAX_PAGES = 1
-MAX_DETAILS_PER_RUN = 120
-DETAILS_FIELDS = (
-    "displayName,nationalPhoneNumber,internationalPhoneNumber,"
-    "websiteUri,businessStatus,formattedAddress"
-)
+MAX_DETAILS_PER_RUN = 20  # fallback only — most leads come from search data directly
 REPS = ("david", "x")
 MAX_NEW_PER_REP = 100
 
@@ -90,6 +86,16 @@ SEEN_PLACE_IDS_FILE = CACHE_DIR / "seen_place_ids.json"
 
 PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 PLACES_DETAILS_URL = "https://places.googleapis.com/v1/places"
+
+# Text Search fetches all fields we need to build a lead — websiteUri lets us
+# pre-filter businesses with websites before ever calling Place Details.
+# This upgrades Text Search from Basic → Advanced SKU ($32→$35/1000) but
+# eliminates ~90% of Details calls ($20/1000 each), a large net saving.
+TEXT_SEARCH_FIELD_MASK = (
+    "places.id,places.websiteUri,places.nationalPhoneNumber,"
+    "places.displayName,places.formattedAddress,places.businessStatus,"
+    "nextPageToken"
+)
 
 
 @dataclass
@@ -146,13 +152,13 @@ def search_cache_valid(cache: dict, query: str) -> bool:
 
 
 def places_text_search(api_key: str, query: str) -> tuple[list[dict], int]:
-    """Returns (places, billable HTTP requests to Text Search endpoint)."""
+    """Returns (places, billable HTTP calls). Each place includes key lead fields."""
     headers = {
         "X-Goog-Api-Key": api_key,
-        "X-Goog-FieldMask": "places.id,nextPageToken",
+        "X-Goog-FieldMask": TEXT_SEARCH_FIELD_MASK,
         "Content-Type": "application/json",
     }
-    place_ids: list[str] = []
+    places: list[dict] = []
     page_token: str | None = None
     http_calls = 0
 
@@ -167,23 +173,22 @@ def places_text_search(api_key: str, query: str) -> tuple[list[dict], int]:
         payload = r.json()
 
         for place in payload.get("places", []):
-            pid = place.get("id")
-            if pid:
-                place_ids.append(pid)
+            if place.get("id"):
+                places.append(place)
 
         page_token = payload.get("nextPageToken")
         if not page_token:
             break
 
-    return [{"place_id": pid} for pid in place_ids], http_calls
+    return places, http_calls
 
 
 def places_details(api_key: str, place_id: str) -> dict:
+    """Fallback for candidates missing phone or name in the Text Search result."""
     headers = {
         "X-Goog-Api-Key": api_key,
         "X-Goog-FieldMask": (
-            "displayName,nationalPhoneNumber,internationalPhoneNumber,"
-            "websiteUri,businessStatus,formattedAddress"
+            "displayName,nationalPhoneNumber,websiteUri,businessStatus,formattedAddress"
         ),
     }
     r = requests.get(f"{PLACES_DETAILS_URL}/{place_id}", headers=headers, timeout=30)
@@ -191,11 +196,9 @@ def places_details(api_key: str, place_id: str) -> dict:
     payload = r.json()
     if "error" in payload:
         return {}
-    # normalize to the same shape lead_from_details expects
     return {
         "name": (payload.get("displayName") or {}).get("text", ""),
         "formatted_phone_number": payload.get("nationalPhoneNumber"),
-        "international_phone_number": payload.get("internationalPhoneNumber"),
         "website": payload.get("websiteUri"),
         "business_status": payload.get("businessStatus"),
         "formatted_address": payload.get("formattedAddress", ""),
@@ -208,23 +211,35 @@ def texas_address(address: str) -> bool:
     return bool(re.search(r"\bTX\b|\bTexas\b", address, re.IGNORECASE))
 
 
-def run_search(
-    api_key: str,
-    query: str,
-    search_cache: dict,
-    today: str,
-) -> tuple[str, list[dict], int]:
-    """Returns (query, places, text_search_http_calls). 0 if cache hit."""
-    if search_cache_valid(search_cache, query):
-        ids = search_cache[query]["place_ids"]
-        return query, [{"place_id": pid} for pid in ids], 0
+def _niche_from_query(query: str) -> str:
+    for area in AREAS:
+        if area.lower() in query.lower():
+            niche = query.replace(area, "").strip()
+            return niche or "local service"
+    return query
 
-    places, http_calls = places_text_search(api_key, query)
-    search_cache[query] = {
-        "fetched": today,
-        "place_ids": [p["place_id"] for p in places if p.get("place_id")],
-    }
-    return query, places, http_calls
+
+def lead_from_place(place: dict, query: str) -> LeadRow | None:
+    """Build a lead directly from Text Search data — no Details call needed."""
+    if place.get("websiteUri"):
+        return None
+    if place.get("businessStatus") == "CLOSED_PERMANENTLY":
+        return None
+    name = (place.get("displayName") or {}).get("text", "").strip()
+    if not name:
+        return None
+    phone = normalize_phone(place.get("nationalPhoneNumber"))
+    if not phone:
+        return None
+    if not texas_address(place.get("formattedAddress", "")):
+        return None
+    return LeadRow(
+        business_name=name,
+        phone=phone,
+        website=None,
+        niche=_niche_from_query(query),
+        assigned_rep="",
+    )
 
 
 def lead_from_details(place_id: str, query: str, details: dict) -> LeadRow | None:
@@ -234,35 +249,41 @@ def lead_from_details(place_id: str, query: str, details: dict) -> LeadRow | Non
         return None
     if details.get("website"):
         return None
-
     name = (details.get("name") or "").strip()
     if not name:
         return None
-
-    phone = normalize_phone(
-        details.get("formatted_phone_number")
-        or details.get("international_phone_number")
-    )
+    phone = normalize_phone(details.get("formatted_phone_number"))
     if not phone:
         return None
-
-    address = details.get("formatted_address", "")
-    if not texas_address(address):
+    if not texas_address(details.get("formatted_address", "")):
         return None
-
-    niche = query
-    for area in AREAS:
-        if area.lower() in query.lower():
-            niche = query.replace(area, "").strip()
-            break
-
     return LeadRow(
         business_name=name,
         phone=phone,
         website=None,
-        niche=niche or "local service",
-        assigned_rep="",  # set before insert
+        niche=_niche_from_query(query),
+        assigned_rep="",
     )
+
+
+def run_search(
+    api_key: str,
+    query: str,
+    search_cache: dict,
+    today: str,
+) -> tuple[str, list[dict], int]:
+    """Returns (query, places_with_data, text_search_http_calls). 0 if cache hit."""
+    if search_cache_valid(search_cache, query):
+        cached = search_cache[query]
+        # Handle old cache format (place_ids list) and new format (places list)
+        if "places" in cached:
+            return query, cached["places"], 0
+        # Migrate old format: return bare dicts with just id so seen_ids dedup still works
+        return query, [{"id": pid} for pid in cached.get("place_ids", [])], 0
+
+    places, http_calls = places_text_search(api_key, query)
+    search_cache[query] = {"fetched": today, "places": places}
+    return query, places, http_calls
 
 
 def count_new_per_rep() -> dict[str, int]:
@@ -274,7 +295,6 @@ def all_reps_at_cap(counts: dict[str, int]) -> bool:
 
 
 def pick_rep_for_insert(counts: dict[str, int]) -> str | None:
-    """Rep with fewest New leads still under cap."""
     eligible = [(rep, counts.get(rep, 0)) for rep in REPS if counts.get(rep, 0) < MAX_NEW_PER_REP]
     if not eligible:
         return None
@@ -322,10 +342,7 @@ def main() -> None:
         )
 
         if all_reps_at_cap(rep_counts):
-            LOG.info(
-                "Both reps at cap (%d each); skipping Places API",
-                MAX_NEW_PER_REP,
-            )
+            LOG.info("Both reps at cap (%d each); skipping Places API", MAX_NEW_PER_REP)
             db.finish_scraper_run(
                 run_id,
                 {
@@ -341,7 +358,6 @@ def main() -> None:
             return
 
         today = str(date.today())
-
         search_cache = load_json(SEARCH_CACHE_FILE, {})
         seen_ids = set(load_json(SEEN_PLACE_IDS_FILE, []))
 
@@ -352,8 +368,10 @@ def main() -> None:
 
         LOG.info("Running %d searches (TTL %dd)...", len(queries), SEARCH_CACHE_TTL_DAYS)
 
-        candidates: list[tuple[str, str]] = []
+        # (place_id, query, place_data) — only no-website places not yet seen
+        candidates: list[tuple[str, str, dict]] = []
         seen_this_run: set[str] = set()
+        pre_filtered = 0  # places skipped because they had a website in search data
 
         with ThreadPoolExecutor(max_workers=SEARCH_WORKERS) as pool:
             futures = {
@@ -368,38 +386,48 @@ def main() -> None:
                 else:
                     search_cache_hits += 1
                 for place in places:
-                    pid = place.get("place_id")
-                    if pid and pid not in seen_ids and pid not in seen_this_run:
-                        seen_this_run.add(pid)
-                        candidates.append((pid, query))
+                    pid = place.get("id")
+                    if not pid or pid in seen_ids or pid in seen_this_run:
+                        continue
+                    seen_this_run.add(pid)
+                    if place.get("websiteUri"):
+                        pre_filtered += 1
+                        continue
+                    candidates.append((pid, query, place))
 
         LOG.info(
-            "Search queries (uncached): %d | cache hits: %d | text HTTP: %d | candidates: %d",
+            "Search queries (uncached): %d | cache hits: %d | text HTTP: %d | "
+            "pre-filtered (has website): %d | candidates: %d",
             search_api_calls,
             search_cache_hits,
             text_search_http_calls,
+            pre_filtered,
             len(candidates),
         )
 
         new_leads: list[LeadRow] = []
         details_budget = MAX_DETAILS_PER_RUN
 
-        def check(pid_query: tuple[str, str]) -> tuple[LeadRow | None, int]:
-            pid, query = pid_query
-            details = places_details(api_key, pid)
-            return lead_from_details(pid, query, details), 1
-
-        for pid_query in candidates:
-            if details_budget <= 0 or all_reps_at_cap(rep_counts):
+        for pid, query, place_data in candidates:
+            if all_reps_at_cap(rep_counts):
                 break
-            lead, n = check(pid_query)
-            place_details_http_calls += n
-            details_budget -= n
+
+            # Try to build the lead from Text Search data first (no API call)
+            lead = lead_from_place(place_data, query)
+
+            if lead is None and not place_data.get("websiteUri") and details_budget > 0:
+                # No website in search data but missing phone or name — rare, use Details
+                details = places_details(api_key, pid)
+                place_details_http_calls += 1
+                details_budget -= 1
+                lead = lead_from_details(pid, query, details)
+
             if not lead:
                 continue
+
             assign_rep = pick_rep_for_insert(rep_counts)
             if not assign_rep:
-                LOG.info("All reps at cap mid-run; stopping Details")
+                LOG.info("All reps at cap mid-run; stopping")
                 break
             lead.assigned_rep = assign_rep
             new_leads.append(lead)

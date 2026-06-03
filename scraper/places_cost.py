@@ -1,27 +1,28 @@
 """
-Google Places API (Legacy) — USD estimate for scraper logs.
+Google Places API (New) — USD estimate for scraper logs.
 
-Official list prices (per 1,000 billable events, after monthly free caps):
+Official list prices (per 1,000 requests, after $200/mo free credit):
   https://developers.google.com/maps/billing-and-pricing/pricing
 
-Legacy Text Search (each HTTP page, including pagination):
-  - Places - Text Search: $32.00
-  - Contact Data (bundled in Text Search response): $3.00
-  - Atmosphere Data (bundled): $5.00
-  - Basic Data: $0 (unlimited on legacy table)
+Text Search (New) — tier determined by highest field in the FieldMask:
+  - Basic  (id, displayName, formattedAddress, businessStatus, …): $32.00
+  - Advanced (+ nationalPhoneNumber, websiteUri, …):               $35.00
+  - Preferred (+ reviews, opening hours, …):                       $40.00
 
-Legacy Place Details (our field mask: phone, website, rating, address, …):
-  - Places Details: $17.00
-  - Contact Data: $3.00
-  - Atmosphere Data: $5.00
-  - Basic Data: $0
+We request Advanced fields (websiteUri, nationalPhoneNumber) in Text Search
+so we can pre-filter businesses with websites before calling Place Details.
+
+Place Details (New) — same tier structure:
+  - Basic:    $17.00
+  - Advanced: $20.00  ← our field mask (nationalPhoneNumber, websiteUri)
+  - Preferred: $25.00
 """
 
 from __future__ import annotations
 
-# Per HTTP request, after free tier exhausted (conservative / worst-case)
-TEXT_SEARCH_HTTP_USD = (32.0 + 3.0 + 5.0) / 1000  # $0.040
-PLACE_DETAILS_HTTP_USD = (17.0 + 3.0 + 5.0) / 1000  # $0.025
+# Per HTTP request, after $200/mo free credit exhausted
+TEXT_SEARCH_HTTP_USD = 35.0 / 1000   # $0.035 — Advanced tier
+PLACE_DETAILS_HTTP_USD = 20.0 / 1000  # $0.020 — Advanced tier (fallback only)
 
 
 def estimate_usd(
@@ -29,9 +30,9 @@ def estimate_usd(
     text_search_http_calls: int,
     place_details_http_calls: int,
 ) -> dict[str, float | int]:
-    text_cost = round(text_search_http_calls * TEXT_SEARCH_HTTP_USD, 2)
-    details_cost = round(place_details_http_calls * PLACE_DETAILS_HTTP_USD, 2)
-    total = round(text_cost + details_cost, 2)
+    text_cost = round(text_search_http_calls * TEXT_SEARCH_HTTP_USD, 4)
+    details_cost = round(place_details_http_calls * PLACE_DETAILS_HTTP_USD, 4)
+    total = round(text_cost + details_cost, 4)
     return {
         "text_search_http_calls": text_search_http_calls,
         "place_details_http_calls": place_details_http_calls,
@@ -55,9 +56,9 @@ def explain_for_log(
         place_details_http_calls=place_details_http_calls,
     )
     return (
-        f"Billing estimate (legacy SKU list prices, ignores monthly free caps): "
-        f"queries={search_queries_billed} cache_hits={search_cache_hits} "
+        f"Billing (Places API New, list price, ignores $200/mo free credit): "
         f"text_HTTP={text_search_http_calls} (${est['text_search_usd']}) "
         f"details_HTTP={place_details_http_calls} (${est['place_details_usd']}) "
-        f"total≈${est['total_usd']} | candidates={candidates} leads={leads_upserted}"
+        f"total≈${est['total_usd']} | cache_hits={search_cache_hits} "
+        f"candidates={candidates} leads={leads_upserted}"
     )
