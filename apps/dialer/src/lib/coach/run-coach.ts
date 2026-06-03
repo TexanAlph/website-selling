@@ -1,11 +1,11 @@
 import { getCoachStackConfig } from "./config";
 import { generateCoachLine } from "./gemini";
 import { formatPlaybookContext, getPlaybookForNiche } from "./playbook";
-import { createServerClient } from "@/lib/supabase/server";
 import { fetchLeadContext } from "@/lib/calls/sessions";
 import { normalizeNiche } from "@/lib/calls/niche";
 import type { CallStage } from "./call-stage";
 import { parseCounterDisplay } from "./coach-display";
+import * as storage from "@/lib/storage/client";
 
 export type CoachRunInput = {
   sessionId: string;
@@ -21,7 +21,6 @@ export async function runCoachPipeline(input: CoachRunInput) {
   }
 
   const stack = getCoachStackConfig();
-  const supabase = createServerClient();
 
   let niche: string | null = null;
   let businessName: string | null = null;
@@ -37,17 +36,10 @@ export async function runCoachPipeline(input: CoachRunInput) {
   const playbook = await getPlaybookForNiche(niche);
   const playbookContext = formatPlaybookContext(playbook);
 
-  const { data: priorCounters } = await supabase
-    .from("coach_messages")
-    .select("content")
-    .eq("session_id", sessionId)
-    .eq("role", "counter")
-    .order("created_at", { ascending: false })
-    .limit(1);
-
+  const priorContent = await storage.getLatestCounterContent(sessionId);
   let previousStage: CallStage | undefined;
-  if (priorCounters?.[0]?.content) {
-    const { stage } = parseCounterDisplay(priorCounters[0].content);
+  if (priorContent) {
+    const { stage } = parseCounterDisplay(priorContent);
     const stages: CallStage[] = [
       "opening",
       "gatekeeper",
@@ -62,7 +54,7 @@ export async function runCoachPipeline(input: CoachRunInput) {
     }
   }
 
-  await supabase.from("coach_messages").insert({
+  await storage.insertCoachMessage({
     session_id: sessionId,
     lead_id: leadId ?? null,
     role: "transcript",
@@ -83,20 +75,12 @@ export async function runCoachPipeline(input: CoachRunInput) {
 
   const counterContent = `[${coached.stage}] ${coached.line}`;
 
-  const { data, error } = await supabase
-    .from("coach_messages")
-    .insert({
-      session_id: sessionId,
-      lead_id: leadId ?? null,
-      role: "counter",
-      content: counterContent,
-    })
-    .select("id, content, created_at, role")
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  const data = await storage.insertCoachMessage({
+    session_id: sessionId,
+    lead_id: leadId ?? null,
+    role: "counter",
+    content: counterContent,
+  });
 
   return {
     message: data,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/dialer-session";
-import { createServerClient } from "@/lib/supabase/server";
+import { insertCoachFeedback } from "@/lib/storage/client";
 
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
@@ -21,17 +21,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createServerClient();
-    const { error } = await supabase.from("coach_feedback").insert({
+    await insertCoachFeedback({
       session_id: sessionId,
       message_id: messageId ?? null,
       rep_name: user,
       helpful,
     });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
 
     return NextResponse.json({ ok: true });
   } catch (e) {

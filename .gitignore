@@ -26,3 +26,4 @@ apps/dialer/out/
 
 # macOS
 .DS_Store
+.vercel

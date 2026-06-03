@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.webdialer.storage</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/path/to/website-selling/mac-mini/run-storage-api.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>WEB_DIALER_REPO</key><string>/path/to/website-selling</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/tmp/webdialer-storage.log</string>
+  <key>StandardErrorPath</key><string>/tmp/webdialer-storage.err</string>
+</dict>
+</plist>

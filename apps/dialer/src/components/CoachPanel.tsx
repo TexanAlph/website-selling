@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useCoachListening } from "@/hooks/useCoachListening";
+import { isTestDialerMode } from "@/lib/test-dialer";
 import { parseCounterDisplay } from "@/lib/coach/coach-display";
 import { stageLabel, type CallStage } from "@/lib/coach/call-stage";
 
@@ -39,38 +39,50 @@ export function CoachPanel({ sessionId, leadId, nicheLabel, active }: Props) {
     usesMediaLegs,
   } = useCoachListening(sessionId, leadId, active);
 
+  const lastCounterAtRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!sessionId) {
       setMessages([]);
       setFeedbackSent(null);
       setFeedbackMessageId(null);
+      lastCounterAtRef.current = null;
       return;
     }
 
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`coach:${sessionId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "coach_messages",
-          filter: `session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          const row = payload.new as CoachMessage;
-          if (row.role === "counter") {
-            setMessages((prev) => [...prev, row]);
-            setFeedbackMessageId(row.id);
-            setFeedbackSent(null);
-          }
-        },
-      )
-      .subscribe();
+    if (isTestDialerMode()) return;
+
+    let cancelled = false;
+
+    const poll = async () => {
+      const since = lastCounterAtRef.current ?? undefined;
+      const q = new URLSearchParams({ sessionId });
+      if (since) q.set("since", since);
+      try {
+        const res = await fetch(`/api/coach/counters?${q}`);
+        if (!res.ok || cancelled) return;
+        const json = (await res.json()) as { messages?: CoachMessage[] };
+        for (const row of json.messages ?? []) {
+          if (row.role !== "counter") continue;
+          lastCounterAtRef.current = row.created_at;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === row.id)) return prev;
+            return [...prev, row];
+          });
+          setFeedbackMessageId(row.id);
+          setFeedbackSent(null);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    void poll();
+    const id = window.setInterval(() => void poll(), 1500);
 
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      window.clearInterval(id);
     };
   }, [sessionId]);
 

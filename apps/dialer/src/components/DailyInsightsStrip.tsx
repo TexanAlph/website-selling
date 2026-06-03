@@ -74,7 +74,7 @@ export function DailyInsightsStrip({
               : ` · ${formatScraperAge(scraper.started_at)}`}
           </>
         ) : (
-          "no runs logged yet — run migration 006 + scraper"
+          "no runs logged yet — start storage API + scraper on Mac Mini"
         )}
       </p>
     </section>

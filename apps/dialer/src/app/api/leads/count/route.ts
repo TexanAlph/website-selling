@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/dialer-session";
-import { createServerClient } from "@/lib/supabase/server";
-import { MAX_NEW_PER_REP } from "@/lib/rep-queue";
+import { countNewLeads } from "@/lib/storage/client";
 
 export async function GET() {
   const rep = await getSessionUser();
@@ -10,20 +9,8 @@ export async function GET() {
   }
 
   try {
-    const supabase = createServerClient();
-    const { count, error } = await supabase
-      .from("leads")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "New")
-      .eq("assigned_rep", rep);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    return NextResponse.json({
-      queueCount: count ?? 0,
-      maxPerRep: MAX_NEW_PER_REP,
-    });
+    const queueCount = await countNewLeads(rep);
+    return NextResponse.json({ queueCount });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Database error" },

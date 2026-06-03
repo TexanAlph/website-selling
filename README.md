@@ -1,6 +1,6 @@
 # Web Dialer — Cloud Outbound System
 
-Headless Mac Mini scrapes Google Maps leads into **Supabase**. You and your employee run a **mobile-first Next.js dialer** on iPhone Safari with **Twilio Voice SDK**, outcome buttons, and a **Gemini-powered AI coach** over Supabase Realtime.
+Headless Mac Mini scrapes Google Maps leads into **local SQLite** and serves them via a **storage API** (exposed with **Cloudflare Tunnel**). You and your employee run a **mobile-first Next.js dialer** on **Vercel** with **Twilio Voice SDK**, outcome buttons, and a **Gemini-powered AI coach**.
 
 **Two Macs, one repo:** edit on MacBook Air (Cursor) → push GitHub → pull on Mac Mini for scraper/cron only. See **[docs/MACHINES.md](docs/MACHINES.md)** so headless jobs never get installed on the Air by mistake.
 
@@ -30,13 +30,12 @@ website-selling/
     └── .env.example
 ```
 
-## 1. Supabase setup
+## 1. Mac Mini storage + Vercel
 
-1. Create a project at [supabase.com](https://supabase.com).
-2. Run SQL migrations in order through `005_learning_loop.sql` (or `supabase db push`).
-3. **Realtime:** Dashboard → Database → Publications → `supabase_realtime` → enable `coach_messages`.
-4. **Login:** `david` / `x` + `DIALER_PASSWORD` in env (simple app session — Supabase is only for leads data, not auth).
-5. Copy keys: anon key on dialer; **service role** on Mac Mini (scraper) and **Vercel** (playbook + nightly cron).
+1. Follow **[docs/LOCAL_STORAGE.md](docs/LOCAL_STORAGE.md)** — SQLite on Mac Mini, storage API, **Cloudflare Tunnel** (free).
+2. Set `STORAGE_API_URL` + `STORAGE_API_SECRET` on **Vercel** (same secret on Mac Mini).
+3. **Login:** `david` / `x` + `DIALER_PASSWORD` in env (app cookie session — not cloud auth).
+4. Legacy SQL in `supabase/migrations/` is reference only; the live DB is `~/.web-dialer/dialer.db`.
 
 ### Leads table (reference)
 

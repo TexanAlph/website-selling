@@ -1,7 +1,6 @@
 import { getCoachStackConfig } from "./config";
 import { geminiTextStream } from "./gemini-shared";
 import { formatPlaybookContext, getPlaybookForNiche } from "./playbook";
-import { createServerClient } from "@/lib/supabase/server";
 import { fetchLeadContext } from "@/lib/calls/sessions";
 import { normalizeNiche } from "@/lib/calls/niche";
 import type { CallStage } from "./call-stage";
@@ -16,6 +15,7 @@ import {
   getSessionCoachCache,
   setSessionCoachCache,
 } from "./session-cache";
+import * as storage from "@/lib/storage/client";
 
 export type CoachStreamInput = {
   sessionId: string;
@@ -45,7 +45,6 @@ async function loadCoachContext(
   let playbookContext = cached?.playbookContext ?? "";
 
   if (!cached) {
-    const supabase = createServerClient();
     if (leadId) {
       const lead = await fetchLeadContext(leadId);
       niche = lead?.niche ?? null;
@@ -67,18 +66,10 @@ async function loadCoachContext(
     hasWebsite = cached.hasWebsite;
   }
 
-  const supabase = createServerClient();
-  const { data: priorCounters } = await supabase
-    .from("coach_messages")
-    .select("content")
-    .eq("session_id", sessionId)
-    .eq("role", "counter")
-    .order("created_at", { ascending: false })
-    .limit(1);
-
+  const priorContent = await storage.getLatestCounterContent(sessionId);
   let previousStage: CallStage | undefined;
-  if (priorCounters?.[0]?.content) {
-    const { stage } = parseCounterDisplay(priorCounters[0].content);
+  if (priorContent) {
+    const { stage } = parseCounterDisplay(priorContent);
     const stages: CallStage[] = [
       "opening",
       "gatekeeper",
@@ -147,8 +138,7 @@ export async function* streamCoachPipeline(
     input.prospectOnly,
   );
 
-  const supabase = createServerClient();
-  void supabase.from("coach_messages").insert({
+  void storage.insertCoachMessage({
     session_id: sessionId,
     lead_id: leadId ?? null,
     role: "transcript",
@@ -170,18 +160,12 @@ export async function* streamCoachPipeline(
     "Quick question — when locals Google your service, do they find you first or the next company?";
   const counterContent = `[${ctx.stage}] ${line}`;
 
-  const { data, error } = await supabase
-    .from("coach_messages")
-    .insert({
-      session_id: sessionId,
-      lead_id: leadId ?? null,
-      role: "counter",
-      content: counterContent,
-    })
-    .select("id, content, created_at, role")
-    .single();
-
-  if (error) throw new Error(error.message);
+  await storage.insertCoachMessage({
+    session_id: sessionId,
+    lead_id: leadId ?? null,
+    role: "counter",
+    content: counterContent,
+  });
 
   yield {
     type: "done",

@@ -28,7 +28,8 @@ This repo is shared via **GitHub** across two Macs (different Apple IDs).
 
 **Use for:**
 
-- `scraper/.env` with `GOOGLE_MAPS_API_KEY` + `SUPABASE_SERVICE_ROLE_KEY` (scraper only — dialer does not use this)
+- `scraper/.env` with `GOOGLE_MAPS_API_KEY` + `STORAGE_API_SECRET` (SQLite at `~/.web-dialer/dialer.db`)
+- **Storage API** 24/7: `mac-mini/run-storage-api.sh` + **Cloudflare Tunnel** (see [docs/LOCAL_STORAGE.md](LOCAL_STORAGE.md))
 - Optional `DEEPGRAM_API_KEY` for Media Streams leg transcription
 - Python venv: `scraper/.venv` lives **on the Mini only**
 - **24/7 launchd** running `mac-mini/run-scraper.sh` (hourly `git pull` + smart scrape)
@@ -87,7 +88,8 @@ When both reps have **100** `New` leads each, the scraper logs `skipped` and use
 
 | Service | Role |
 |---------|------|
-| **Supabase** | Database, auth, realtime coach |
+| **Mac Mini SQLite** | All leads, calls, coach data (`~/.web-dialer/dialer.db`) |
+| **Cloudflare Tunnel** | HTTPS from internet → Mac Mini storage API |
 | **Vercel** | Hosts `apps/dialer` (coach API + streaming during calls) |
 | **Twilio** | Voice PSTN from iPhone Safari; one `TWILIO_CALLER_ID`, identities `david` / `x` |
 | **Google AI Studio** | Gemini key on Vercel for coach |

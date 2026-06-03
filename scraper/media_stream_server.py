@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Twilio Media Streams → Deepgram → Supabase coach_messages (prospect vs rep legs).
+Twilio Media Streams → Deepgram → Mac Mini SQLite coach_messages (prospect vs rep legs).
 
 Run on Mac Mini alongside the scraper (not on Vercel):
   python media_stream_server.py
 
-Requires: MEDIA_STREAM_PORT, DEEPGRAM_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+Requires: MEDIA_STREAM_PORT, DEEPGRAM_API_KEY (uses ~/.web-dialer/dialer.db)
 Expose WSS via ngrok/Tailscale; set MEDIA_STREAM_WSS_URL on Vercel TwiML path.
 """
 
@@ -21,9 +21,13 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from supabase import create_client
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
+
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "storage"))
+import local_db as db  # noqa: E402
 
 LOG = logging.getLogger("media_stream")
 PORT = int(os.getenv("MEDIA_STREAM_PORT", "8765"))
@@ -68,20 +72,13 @@ def transcribe_mulaw(audio: bytes) -> str:
     )
 
 
-def insert_line(supabase, session_id: str, role: str, text: str) -> None:
+def insert_line(session_id: str, role: str, text: str) -> None:
     if not text:
         return
-    supabase.table("coach_messages").insert(
-        {
-            "session_id": session_id,
-            "role": role,
-            "content": text[:500],
-        }
-    ).execute()
+    db.insert_coach_message(session_id, role, text[:500])
 
 
 async def flush_track(
-    supabase,
     session_id: str,
     track: str,
     buffers: dict[str, bytearray],
@@ -95,20 +92,14 @@ async def flush_track(
     try:
         text = await asyncio.to_thread(transcribe_mulaw, bytes(buf))
         if text:
-            await asyncio.to_thread(insert_line, supabase, session_id, role, text)
+            await asyncio.to_thread(insert_line, session_id, role, text)
             LOG.info("%s %s: %s", session_id[:8], role, text[:80])
     except Exception as exc:
         LOG.warning("Transcribe failed: %s", exc)
 
 
 async def handler(websocket):
-    supabase_url = os.getenv("SUPABASE_URL", "").strip()
-    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
-    if not supabase_url or not service_key:
-        await websocket.close()
-        return
-
-    supabase = create_client(supabase_url, service_key)
+    db.init_db()
     session_id: str | None = None
     buffers: dict[str, bytearray] = defaultdict(bytearray)
     last_flush: dict[str, float] = defaultdict(float)
@@ -145,11 +136,11 @@ async def handler(websocket):
                 now = asyncio.get_event_loop().time()
                 if now - last_flush[track] >= FLUSH_SEC:
                     last_flush[track] = now
-                    await flush_track(supabase, session_id, track, buffers)
+                    await flush_track(session_id, track, buffers)
 
             if event == "stop" and session_id:
                 for track in list(buffers.keys()):
-                    await flush_track(supabase, session_id, track, buffers)
+                    await flush_track(session_id, track, buffers)
                 LOG.info("Stream stop session=%s", session_id)
     except Exception as exc:
         LOG.exception("WS error: %s", exc)

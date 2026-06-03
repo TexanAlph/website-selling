@@ -11,8 +11,6 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",
-    "@supabase/ssr": "^0.6.1",
-    "@supabase/supabase-js": "^2.49.1",
     "@twilio/voice-sdk": "^2.12.4",
     "jose": "^6.2.3",
     "next": "15.5.18",

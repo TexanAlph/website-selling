@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/dialer-session";
-import { createServerClient } from "@/lib/supabase/server";
+import { getInsightsPayload } from "@/lib/storage/client";
 
 export async function GET() {
   if (!(await getSessionUser())) {
@@ -8,29 +8,8 @@ export async function GET() {
   }
 
   try {
-    const supabase = createServerClient();
-
-    const [{ data: insight }, { data: scraper }] = await Promise.all([
-      supabase
-        .from("daily_insights")
-        .select("report_date, content, created_at")
-        .order("report_date", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("scraper_runs")
-        .select(
-          "started_at, finished_at, status, leads_upserted, error_message",
-        )
-        .order("started_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
-
-    return NextResponse.json({
-      dailyInsight: insight ?? null,
-      lastScraperRun: scraper ?? null,
-    });
+    const payload = await getInsightsPayload();
+    return NextResponse.json(payload);
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed to load insights" },

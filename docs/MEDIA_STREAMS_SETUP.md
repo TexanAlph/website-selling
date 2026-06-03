@@ -16,7 +16,7 @@ Until `MEDIA_STREAM_WSS_URL` is set, calls still work — coach uses **Safari mi
 
 - Migrations **010** applied (speaker roles on `coach_messages`)
 - `DEEPGRAM_API_KEY` on Mac Mini `scraper/.env` (free credits for new accounts)
-- Same `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` as the scraper
+- Same SQLite DB as scraper (`~/.web-dialer/dialer.db` via `storage/local_db.py`)
 
 ---
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/dialer-session";
-import { createServerClient } from "@/lib/supabase/server";
+import { updateLeadStatus } from "@/lib/storage/client";
 import type { LeadStatus } from "@/lib/leads";
 
 export async function PATCH(
@@ -21,38 +21,16 @@ export async function PATCH(
   }
 
   try {
-    const supabase = createServerClient();
-
-    let query = supabase
-      .from("leads")
-      .update({
-        status,
-        status_changed_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-
-    if (status === "Calling") {
-      query = query.eq("status", "New").eq("assigned_rep", rep);
-    } else {
-      query = query.eq("assigned_rep", rep);
-    }
-
-    const { data, error } = await query.select("id").maybeSingle();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    if (!data) {
+    await updateLeadStatus(id, status, rep, status === "Calling");
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Database error";
+    if (message.includes("409") || message.includes("not available")) {
       return NextResponse.json(
         { error: "Lead not available or already claimed" },
         { status: 409 },
       );
     }
-    return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Database error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

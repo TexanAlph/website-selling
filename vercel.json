@@ -1,5 +1,3 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm install --prefix apps/dialer",
-  "buildCommand": "npm run build --prefix apps/dialer"
+  "$schema": "https://openapi.vercel.sh/vercel.json"
 }

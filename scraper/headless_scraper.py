@@ -4,12 +4,10 @@ Headless lead scraper — run on Mac Mini only, not MacBook Air (see docs/MACHIN
 Scheduled via launchd/cron on the Mini.
 
 - Queries Google Places API for local service businesses without websites
-- Upserts into Supabase `leads` with phone UNIQUE deduplication
+- Upserts into Mac Mini SQLite (`~/.web-dialer/dialer.db`) with phone UNIQUE dedup
 
 Required env (see scraper/.env.example):
   GOOGLE_MAPS_API_KEY
-  SUPABASE_URL
-  SUPABASE_SERVICE_ROLE_KEY
 """
 
 from __future__ import annotations
@@ -29,9 +27,11 @@ from typing import Any
 
 import requests
 from dotenv import load_dotenv
-from supabase import Client, create_client
 
 from places_cost import estimate_usd, explain_for_log
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "storage"))
+import local_db as db  # noqa: E402
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
@@ -74,8 +74,8 @@ SEARCHES_PER_RUN = int(os.getenv("SEARCHES_PER_RUN", str(DEFAULT_SEARCHES_PER_RU
 TEXT_SEARCH_MAX_PAGES = 1
 MAX_DETAILS_PER_RUN = 120
 DETAILS_FIELDS = (
-    "name,formatted_phone_number,international_phone_number,website,"
-    "business_status,formatted_address"
+    "displayName,nationalPhoneNumber,internationalPhoneNumber,"
+    "websiteUri,businessStatus,formattedAddress"
 )
 REPS = ("david", "x")
 MAX_NEW_PER_REP = 100
@@ -88,8 +88,8 @@ CACHE_DIR = Path(os.getenv("SCRAPER_CACHE_DIR", Path.home() / ".web-dialer"))
 SEARCH_CACHE_FILE = CACHE_DIR / "search_cache.json"
 SEEN_PLACE_IDS_FILE = CACHE_DIR / "seen_place_ids.json"
 
-PLACES_TEXT_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
-PLACES_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
+PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
+PLACES_DETAILS_URL = "https://places.googleapis.com/v1/places"
 
 
 @dataclass
@@ -147,48 +147,59 @@ def search_cache_valid(cache: dict, query: str) -> bool:
 
 def places_text_search(api_key: str, query: str) -> tuple[list[dict], int]:
     """Returns (places, billable HTTP requests to Text Search endpoint)."""
-    params = {"query": query, "key": api_key}
+    headers = {
+        "X-Goog-Api-Key": api_key,
+        "X-Goog-FieldMask": "places.id,nextPageToken",
+        "Content-Type": "application/json",
+    }
     place_ids: list[str] = []
-    next_page: str | None = None
+    page_token: str | None = None
     http_calls = 0
 
     for _ in range(TEXT_SEARCH_MAX_PAGES):
-        if next_page:
-            params = {"pagetoken": next_page, "key": api_key}
-            time.sleep(2)  # Google requires delay before next_page_token is valid
+        body: dict = {"textQuery": query}
+        if page_token:
+            body["pageToken"] = page_token
 
         http_calls += 1
-        r = requests.get(PLACES_TEXT_SEARCH_URL, params=params, timeout=30)
+        r = requests.post(PLACES_TEXT_SEARCH_URL, json=body, headers=headers, timeout=30)
         r.raise_for_status()
         payload = r.json()
-        status = payload.get("status")
-        if status not in ("OK", "ZERO_RESULTS"):
-            raise RuntimeError(f"Places text search failed: {status} ({payload.get('error_message')})")
 
-        for result in payload.get("results", []):
-            pid = result.get("place_id")
+        for place in payload.get("places", []):
+            pid = place.get("id")
             if pid:
                 place_ids.append(pid)
 
-        next_page = payload.get("next_page_token")
-        if not next_page:
+        page_token = payload.get("nextPageToken")
+        if not page_token:
             break
 
     return [{"place_id": pid} for pid in place_ids], http_calls
 
 
 def places_details(api_key: str, place_id: str) -> dict:
-    params = {
-        "place_id": place_id,
-        "fields": DETAILS_FIELDS,
-        "key": api_key,
+    headers = {
+        "X-Goog-Api-Key": api_key,
+        "X-Goog-FieldMask": (
+            "displayName,nationalPhoneNumber,internationalPhoneNumber,"
+            "websiteUri,businessStatus,formattedAddress"
+        ),
     }
-    r = requests.get(PLACES_DETAILS_URL, params=params, timeout=30)
+    r = requests.get(f"{PLACES_DETAILS_URL}/{place_id}", headers=headers, timeout=30)
     r.raise_for_status()
     payload = r.json()
-    if payload.get("status") != "OK":
+    if "error" in payload:
         return {}
-    return payload.get("result", {})
+    # normalize to the same shape lead_from_details expects
+    return {
+        "name": (payload.get("displayName") or {}).get("text", ""),
+        "formatted_phone_number": payload.get("nationalPhoneNumber"),
+        "international_phone_number": payload.get("internationalPhoneNumber"),
+        "website": payload.get("websiteUri"),
+        "business_status": payload.get("businessStatus"),
+        "formatted_address": payload.get("formattedAddress", ""),
+    }
 
 
 def texas_address(address: str) -> bool:
@@ -254,57 +265,8 @@ def lead_from_details(place_id: str, query: str, details: dict) -> LeadRow | Non
     )
 
 
-def start_scraper_run(supabase: Client) -> str:
-    row = (
-        supabase.table("scraper_runs")
-        .insert({"status": "running"})
-        .execute()
-    )
-    return row.data[0]["id"]
-
-
-def finish_scraper_run(
-    supabase: Client,
-    run_id: str,
-    *,
-    status: str,
-    leads_upserted: int,
-    search_api_calls: int,
-    search_cache_hits: int,
-    text_search_http_calls: int = 0,
-    place_details_http_calls: int = 0,
-    estimated_usd: float | None = None,
-    error_message: str | None = None,
-) -> None:
-    payload: dict[str, Any] = {
-        "status": status,
-        "finished_at": datetime.utcnow().isoformat() + "Z",
-        "leads_upserted": leads_upserted,
-        "search_api_calls": search_api_calls,
-        "search_cache_hits": search_cache_hits,
-        "error_message": error_message,
-    }
-    if text_search_http_calls or place_details_http_calls:
-        payload["text_search_http_calls"] = text_search_http_calls
-        payload["place_details_http_calls"] = place_details_http_calls
-    if estimated_usd is not None:
-        payload["estimated_usd"] = estimated_usd
-    supabase.table("scraper_runs").update(payload).eq("id", run_id).execute()
-
-
-def count_new_per_rep(supabase: Client) -> dict[str, int]:
-    """Count New leads per rep; missing reps treated as 0."""
-    counts: dict[str, int] = {}
-    for rep in REPS:
-        result = (
-            supabase.table("leads")
-            .select("id", count="exact")
-            .eq("status", "New")
-            .eq("assigned_rep", rep)
-            .execute()
-        )
-        counts[rep] = result.count or 0
-    return counts
+def count_new_per_rep() -> dict[str, int]:
+    return db.count_new_per_rep(REPS)
 
 
 def all_reps_at_cap(counts: dict[str, int]) -> bool:
@@ -320,10 +282,7 @@ def pick_rep_for_insert(counts: dict[str, int]) -> str | None:
     return eligible[0][0]
 
 
-def upsert_leads(supabase: Client, rows: list[LeadRow]) -> int:
-    if not rows:
-        return 0
-
+def upsert_leads(rows: list[LeadRow]) -> int:
     payload = [
         {
             "business_name": row.business_name,
@@ -336,16 +295,7 @@ def upsert_leads(supabase: Client, rows: list[LeadRow]) -> int:
         for row in rows
         if row.assigned_rep
     ]
-
-    if not payload:
-        return 0
-
-    supabase.table("leads").upsert(
-        payload,
-        on_conflict="phone",
-        ignore_duplicates=False,
-    ).execute()
-    return len(payload)
+    return db.upsert_leads(payload)
 
 
 def main() -> None:
@@ -356,11 +306,8 @@ def main() -> None:
     )
 
     api_key = require_env("GOOGLE_MAPS_API_KEY")
-    supabase_url = require_env("SUPABASE_URL")
-    service_key = require_env("SUPABASE_SERVICE_ROLE_KEY")
-
-    supabase = create_client(supabase_url, service_key)
-    run_id = start_scraper_run(supabase)
+    db.init_db()
+    run_id = db.start_scraper_run()
     search_api_calls = 0
     search_cache_hits = 0
     text_search_http_calls = 0
@@ -368,7 +315,7 @@ def main() -> None:
     inserted = 0
 
     try:
-        rep_counts = count_new_per_rep(supabase)
+        rep_counts = count_new_per_rep()
         LOG.info(
             "New leads per rep: %s",
             ", ".join(f"{r}={rep_counts.get(r, 0)}" for r in REPS),
@@ -379,16 +326,17 @@ def main() -> None:
                 "Both reps at cap (%d each); skipping Places API",
                 MAX_NEW_PER_REP,
             )
-            finish_scraper_run(
-                supabase,
+            db.finish_scraper_run(
                 run_id,
-                status="skipped",
-                leads_upserted=0,
-                search_api_calls=0,
-                search_cache_hits=0,
-                text_search_http_calls=0,
-                place_details_http_calls=0,
-                estimated_usd=0.0,
+                {
+                    "status": "skipped",
+                    "leads_upserted": 0,
+                    "search_api_calls": 0,
+                    "search_cache_hits": 0,
+                    "text_search_http_calls": 0,
+                    "place_details_http_calls": 0,
+                    "estimated_usd": 0.0,
+                },
             )
             return
 
@@ -458,7 +406,7 @@ def main() -> None:
             rep_counts[assign_rep] = rep_counts.get(assign_rep, 0) + 1
             LOG.info("✓ %s | %s → %s", lead.business_name, lead.phone, assign_rep)
 
-        inserted = upsert_leads(supabase, new_leads)
+        inserted = upsert_leads(new_leads)
 
         est = estimate_usd(
             text_search_http_calls=text_search_http_calls,
@@ -481,28 +429,30 @@ def main() -> None:
 
         LOG.info("Done. Upserted %d leads.", inserted)
 
-        finish_scraper_run(
-            supabase,
+        db.finish_scraper_run(
             run_id,
-            status="ok",
-            leads_upserted=inserted,
-            search_api_calls=search_api_calls,
-            search_cache_hits=search_cache_hits,
-            text_search_http_calls=text_search_http_calls,
-            place_details_http_calls=place_details_http_calls,
-            estimated_usd=float(est["total_usd"]),
+            {
+                "status": "ok",
+                "leads_upserted": inserted,
+                "search_api_calls": search_api_calls,
+                "search_cache_hits": search_cache_hits,
+                "text_search_http_calls": text_search_http_calls,
+                "place_details_http_calls": place_details_http_calls,
+                "estimated_usd": float(est["total_usd"]),
+            },
         )
     except Exception as exc:
-        finish_scraper_run(
-            supabase,
+        db.finish_scraper_run(
             run_id,
-            status="error",
-            leads_upserted=inserted,
-            search_api_calls=search_api_calls,
-            search_cache_hits=search_cache_hits,
-            text_search_http_calls=text_search_http_calls,
-            place_details_http_calls=place_details_http_calls,
-            error_message=str(exc)[:500],
+            {
+                "status": "error",
+                "leads_upserted": inserted,
+                "search_api_calls": search_api_calls,
+                "search_cache_hits": search_cache_hits,
+                "text_search_http_calls": text_search_http_calls,
+                "place_details_http_calls": place_details_http_calls,
+                "error_message": str(exc)[:500],
+            },
         )
         LOG.exception("Scraper failed: %s", exc)
         raise

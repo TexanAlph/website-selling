@@ -1,7 +1,7 @@
 import type { LeadStatus } from "@/lib/leads";
-import { createServerClient } from "@/lib/supabase/server";
 import { normalizeNiche } from "./niche";
 import type { CallSource, FinalizeCallInput, SessionRecap } from "./types";
+import * as storage from "@/lib/storage/client";
 
 export type { SessionRecap } from "./types";
 
@@ -12,71 +12,38 @@ export async function createCallSession(input: {
   source: CallSource;
   repName?: string | null;
 }) {
-  const supabase = createServerClient();
   const niche = normalizeNiche(input.niche);
-
-  const { error } = await supabase.from("call_sessions").upsert(
-    {
-      id: input.sessionId,
-      lead_id: input.leadId ?? null,
-      niche: niche === "all" ? null : niche,
-      call_source: input.source,
-      rep_name: input.repName ?? null,
-      started_at: new Date().toISOString(),
-      analysis_status: "pending",
-    },
-    { onConflict: "id" },
-  );
-
-  if (error) throw new Error(error.message);
+  await storage.upsertCallSession({
+    id: input.sessionId,
+    lead_id: input.leadId ?? null,
+    niche: niche === "all" ? null : niche,
+    call_source: input.source,
+    rep_name: input.repName ?? null,
+    started_at: new Date().toISOString(),
+    analysis_status: "pending",
+  });
 }
 
 export async function aggregateSessionTranscript(
   sessionId: string,
 ): Promise<string> {
-  const supabase = createServerClient();
-  const { data, error } = await supabase
-    .from("coach_messages")
-    .select("content, created_at")
-    .eq("session_id", sessionId)
-    .eq("role", "transcript")
-    .order("created_at", { ascending: true });
-
-  if (error) throw new Error(error.message);
-  if (!data?.length) return "";
-
-  const parts: string[] = [];
-  let last = "";
-  for (const row of data) {
-    const chunk = row.content?.trim() ?? "";
-    if (!chunk || chunk === last) continue;
-    parts.push(chunk);
-    last = chunk;
-  }
-  return parts.join("\n");
+  return storage.aggregateSessionTranscript(sessionId);
 }
 
 export async function finalizeCallSession(
   sessionId: string,
   input: FinalizeCallInput,
 ) {
-  const supabase = createServerClient();
   const endedAt = new Date();
 
-  const { data: existing, error: fetchErr } = await supabase
-    .from("call_sessions")
-    .select(
-      "started_at, ended_at, analysis_status, summary, rep_score, objections, recommendations, opener_suggestion, outcome_status, duration_seconds",
-    )
-    .eq("id", sessionId)
-    .maybeSingle();
+  let existing = await storage.getCallSession(sessionId).catch(() => null);
 
-  if (fetchErr) throw new Error(fetchErr.message);
   if (!existing) {
     await createCallSession({
       sessionId,
       source: "queue",
     });
+    existing = await storage.getCallSession(sessionId);
   }
 
   if (existing?.ended_at) {
@@ -87,7 +54,7 @@ export async function finalizeCallSession(
   }
 
   const startedAt = existing?.started_at
-    ? new Date(existing.started_at)
+    ? new Date(String(existing.started_at))
     : endedAt;
   const durationSeconds = Math.max(
     0,
@@ -97,29 +64,19 @@ export async function finalizeCallSession(
   const transcriptFull = await aggregateSessionTranscript(sessionId);
   const outcomeStatus = input.outcomeStatus ?? null;
 
-  const { error: updateErr } = await supabase
-    .from("call_sessions")
-    .update({
-      ended_at: endedAt.toISOString(),
-      outcome_status: outcomeStatus,
-      duration_seconds: durationSeconds,
-      transcript_full: transcriptFull || null,
-      analysis_status: transcriptFull ? "pending" : "skipped",
-    })
-    .eq("id", sessionId);
-
-  if (updateErr) throw new Error(updateErr.message);
+  await storage.updateCallSession(sessionId, {
+    ended_at: endedAt.toISOString(),
+    outcome_status: outcomeStatus,
+    duration_seconds: durationSeconds,
+    transcript_full: transcriptFull || null,
+    analysis_status: transcriptFull ? "pending" : "skipped",
+  });
 
   if (outcomeStatus) {
-    const { data: sess } = await supabase
-      .from("call_sessions")
-      .select("lead_id")
-      .eq("id", sessionId)
-      .maybeSingle();
-
-    await supabase.from("coach_messages").insert({
+    const leadId = existing?.lead_id ? String(existing.lead_id) : null;
+    await storage.insertCoachMessage({
       session_id: sessionId,
-      lead_id: sess?.lead_id ?? null,
+      lead_id: leadId,
       role: "outcome",
       content: outcomeStatus,
     });
@@ -134,44 +91,27 @@ export async function finalizeCallSession(
   };
 }
 
-function sessionRecapFromRow(row: {
-  summary?: string | null;
-  rep_score?: number | null;
-  objections?: unknown;
-  recommendations?: string | null;
-  opener_suggestion?: string | null;
-  outcome_status?: string | null;
-  duration_seconds?: number | null;
-  analysis_status?: string;
-}): SessionRecap {
+function sessionRecapFromRow(row: Record<string, unknown>): SessionRecap {
   const objections = Array.isArray(row.objections)
     ? (row.objections as string[])
     : [];
   return {
-    summary: row.summary ?? null,
-    repScore: row.rep_score ?? null,
+    summary: (row.summary as string) ?? null,
+    repScore: (row.rep_score as number) ?? null,
     objections,
-    recommendations: row.recommendations ?? null,
-    openerSuggestion: row.opener_suggestion ?? null,
-    outcomeStatus: row.outcome_status ?? null,
-    durationSeconds: row.duration_seconds ?? null,
-    analysisStatus: row.analysis_status ?? "pending",
+    recommendations: (row.recommendations as string) ?? null,
+    openerSuggestion: (row.opener_suggestion as string) ?? null,
+    outcomeStatus: (row.outcome_status as string) ?? null,
+    durationSeconds: (row.duration_seconds as number) ?? null,
+    analysisStatus: (row.analysis_status as string) ?? "pending",
   };
 }
 
 export async function getSessionRecap(
   sessionId: string,
 ): Promise<SessionRecap | null> {
-  const supabase = createServerClient();
-  const { data, error } = await supabase
-    .from("call_sessions")
-    .select(
-      "summary, rep_score, objections, recommendations, opener_suggestion, outcome_status, duration_seconds, analysis_status, ended_at",
-    )
-    .eq("id", sessionId)
-    .maybeSingle();
-
-  if (error || !data?.ended_at) return null;
+  const data = await storage.getCallSession(sessionId).catch(() => null);
+  if (!data?.ended_at) return null;
   return sessionRecapFromRow(data);
 }
 
@@ -187,41 +127,28 @@ export async function markSessionAnalysis(
     analyzed_at?: string;
   },
 ) {
-  const supabase = createServerClient();
-  const { error } = await supabase
-    .from("call_sessions")
-    .update({
-      ...patch,
-      analyzed_at: patch.analyzed_at ?? new Date().toISOString(),
-    })
-    .eq("id", sessionId);
-
-  if (error) throw new Error(error.message);
+  await storage.updateCallSession(sessionId, {
+    ...patch,
+    analyzed_at: patch.analyzed_at ?? new Date().toISOString(),
+  });
 }
 
 export async function getSessionForAnalysis(sessionId: string) {
-  const supabase = createServerClient();
-  const { data, error } = await supabase
-    .from("call_sessions")
-    .select(
-      "id, lead_id, niche, outcome_status, transcript_full, duration_seconds, call_source, rep_name",
-    )
-    .eq("id", sessionId)
-    .single();
-
-  if (error) throw new Error(error.message);
-  return data;
+  const data = await storage.getCallSession(sessionId);
+  return {
+    id: data.id as string,
+    lead_id: data.lead_id as string | null,
+    niche: data.niche as string | null,
+    outcome_status: data.outcome_status as string | null,
+    transcript_full: data.transcript_full as string | null,
+    duration_seconds: data.duration_seconds as number | null,
+    call_source: data.call_source as string,
+    rep_name: data.rep_name as string | null,
+  };
 }
 
 export async function fetchLeadContext(leadId: string | null) {
-  if (!leadId) return null;
-  const supabase = createServerClient();
-  const { data } = await supabase
-    .from("leads")
-    .select("business_name, niche, website, status")
-    .eq("id", leadId)
-    .maybeSingle();
-  return data;
+  return storage.fetchLeadContext(leadId);
 }
 
 export type OutcomeForPlaybook = LeadStatus | null;

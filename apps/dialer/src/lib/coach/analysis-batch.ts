@@ -1,10 +1,10 @@
-import { createServerClient } from "@/lib/supabase/server";
 import { runPostCallSwarm } from "./post-call";
 import { geminiText, parseJsonBlock } from "./gemini-shared";
 import { getCoachStackConfig } from "./config";
 import { normalizeNiche } from "@/lib/calls/niche";
 import { upsertPlaybookEntry } from "./playbook";
 import { buildDailyAnalystPrompt } from "./sales-sop";
+import * as storage from "@/lib/storage/client";
 
 const BATCH_LIMIT = 25;
 
@@ -15,21 +15,12 @@ export type BatchResult = {
 };
 
 export async function runPendingCallAnalysis(): Promise<BatchResult> {
-  const supabase = createServerClient();
-  const { data: pending, error } = await supabase
-    .from("call_sessions")
-    .select("id")
-    .eq("analysis_status", "pending")
-    .not("ended_at", "is", null)
-    .order("ended_at", { ascending: true })
-    .limit(BATCH_LIMIT);
-
-  if (error) throw new Error(error.message);
+  const pending = await storage.listPendingAnalysis(BATCH_LIMIT);
 
   let processed = 0;
   let failed = 0;
 
-  for (const row of pending ?? []) {
+  for (const row of pending) {
     try {
       await runPostCallSwarm(row.id);
       processed += 1;
@@ -38,35 +29,20 @@ export async function runPendingCallAnalysis(): Promise<BatchResult> {
     }
   }
 
-  const dailyInsight = await runDailyInsightReport(supabase);
+  const dailyInsight = await runDailyInsightReport();
 
   return { processed, failed, dailyInsight };
 }
 
-async function runDailyInsightReport(
-  supabase: ReturnType<typeof createServerClient>,
-): Promise<boolean> {
+async function runDailyInsightReport(): Promise<boolean> {
   const stack = getCoachStackConfig();
   const today = new Date().toISOString().slice(0, 10);
   const since = new Date(Date.now() - 7 * 86400000).toISOString();
 
-  const { data: existing } = await supabase
-    .from("daily_insights")
-    .select("id")
-    .eq("report_date", today)
-    .maybeSingle();
+  if (await storage.dailyInsightExists(today)) return false;
 
-  if (existing) return false;
-
-  const { data: sessions } = await supabase
-    .from("call_sessions")
-    .select(
-      "outcome_status, niche, rep_score, summary, objections, duration_seconds",
-    )
-    .gte("ended_at", since)
-    .eq("analysis_status", "completed");
-
-  if (!sessions?.length) return false;
+  const sessions = await storage.listCompletedSessionsSince(since);
+  if (!sessions.length) return false;
 
   const interested = sessions.filter(
     (s) => s.outcome_status === "Interested/Closed",
@@ -101,10 +77,7 @@ async function runDailyInsightReport(
   const parsed = parseJsonBlock<Record<string, unknown>>(raw);
   const content = parsed ?? { raw, generated_at: new Date().toISOString() };
 
-  await supabase.from("daily_insights").insert({
-    report_date: today,
-    content,
-  });
+  await storage.insertDailyInsight(today, content);
 
   const candidates = (
     parsed as { playbook_candidates?: Array<Record<string, string>> } | null

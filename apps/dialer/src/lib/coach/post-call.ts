@@ -1,4 +1,3 @@
-import { createServerClient } from "@/lib/supabase/server";
 import { normalizeNiche } from "@/lib/calls/niche";
 import {
   fetchLeadContext,
@@ -9,6 +8,7 @@ import { bumpPlaybookOutcomes, upsertPlaybookEntry } from "./playbook";
 import { geminiText, parseJsonBlock } from "./gemini-shared";
 import { getCoachStackConfig } from "./config";
 import { buildPostCallSystemPrompt } from "./sales-sop";
+import * as storage from "@/lib/storage/client";
 
 type SummaryResult = { summary: string };
 type ScoreResult = {
@@ -82,8 +82,7 @@ export async function runPostCallSwarm(sessionId: string) {
       opener_suggestion: openerSuggestion,
     });
 
-    const supabase = createServerClient();
-    await supabase.from("coach_messages").insert({
+    await storage.insertCoachMessage({
       session_id: sessionId,
       lead_id: session.lead_id,
       role: "summary",

@@ -6,75 +6,50 @@ Use this after connecting the GitHub repo in Vercel.
 
 The Next.js app lives in **`apps/dialer`**, not the repo root.
 
-If production shows **NOT_FOUND** or builds finish in **~2 seconds** with `framework: null`, Vercel is deploying the repo root (no Next app).
-
 Vercel → **website-selling** → **Settings** → **General** → **Root Directory** → set to:
 
 ```
 apps/dialer
 ```
 
-Save → **Redeploy** production. A correct Next.js build takes **~30–60 seconds**, not ~2 seconds.
-
-The repo also has a root `vercel.json` / `package.json` `vercel-build` fallback, but **Root Directory = `apps/dialer` is still the reliable fix** for Git deploys.
+Save → **Redeploy** production.
 
 ## 2. Turn off deployment protection (for iPhone + employee)
 
-If previews show **“Authentication Required”**, the dialer is blocked on Safari.
-
-Vercel → **Settings** → **Deployment Protection** → for **Production**, allow public access (or “Only Vercel” off for production URL).
-
-Your employee’s iPhone must open the app **without** logging into Vercel.
+Vercel → **Settings** → **Deployment Protection** → for **Production**, allow public access.
 
 ## 3. Environment variables
 
-In **Settings** → **Environment Variables** (Production), add at minimum:
+In **Settings** → **Environment Variables** (Production):
 
 | Variable | Required for |
 |----------|----------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Leads + coach |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Leads + coach |
-| `TWILIO_ACCOUNT_SID` | Calling |
-| `TWILIO_API_KEY` | Calling |
-| `TWILIO_API_SECRET` | Calling |
-| `TWILIO_TWIML_APP_SID` | Calling |
-| `TWILIO_CALLER_ID` | Outbound caller ID |
-| `GEMINI_API_KEY` | Coach (add when ready) |
-Redeploy after adding vars.
+| `STORAGE_API_URL` | Mac Mini API (Cloudflare Tunnel HTTPS URL) |
+| `STORAGE_API_SECRET` | Auth to storage API (same as Mac Mini) |
+| `TWILIO_*` | Calling |
+| `GEMINI_API_KEY` | Coach |
+| `DIALER_PASSWORD` / `DIALER_AUTH_SECRET` | App login |
 
-**Optional:** `CRON_SECRET` only for Mac Mini `nightly_analyze.py`. Vercel scheduled crons work without it (`x-vercel-cron` header).
+See **[docs/LOCAL_STORAGE.md](LOCAL_STORAGE.md)** for Mac Mini + tunnel setup.
 
-**Test mode:** Do not set `NEXT_PUBLIC_DIALER_TEST_MODE=false`. With real Supabase URL + anon key, the app uses production mode automatically.
+**Remove** any `NEXT_PUBLIC_SUPABASE_*` variables — no longer used.
 
-**Migrations:** Applied on linked project through `007` (includes Realtime on `leads`).
+## 4. App login
 
-## 4. App login (not Supabase Auth)
-
-Only two users: `david` and `x`. Password is set in Vercel env:
-
-| Variable | Example |
-|----------|---------|
-| `DIALER_PASSWORD` | `Money!` |
-| `DIALER_AUTH_SECRET` | long random string (session cookie signing) |
-
-No Supabase Auth users or magic links required.
+Users: `david` and `x`. Password in `DIALER_PASSWORD`.
 
 ## 5. Twilio Voice URL
-
-TwiML App → Voice Request URL (POST):
 
 ```
 https://website-selling-nu.vercel.app/api/twilio/voice
 ```
 
-## 6. Smoke test on iPhone
+## 6. Smoke test
 
-1. Open production URL in Safari (not a preview URL that requires Vercel login).
-2. You should see **login** or **dialer** — not a blank page or Vercel auth wall.
-3. Add to Home Screen for full-screen UX.
-4. Without Supabase env: errors on load. Without Twilio: “Connecting…” forever on Call.
+1. Mac Mini: storage API healthy + tunnel reachable from browser: `https://YOUR_TUNNEL/health` (needs Bearer for other routes; `/health` is public).
+2. iPhone opens production URL → login → real leads (not test mode).
+3. Insights strip shows scraper status after first scrape run.
 
-## Production URLs (your project)
+## Production URL
 
-- **Production:** `https://website-selling-nu.vercel.app` (not `website-selling-101` — that host is not attached to this project)
-- Use this exact host in Supabase Auth redirect URLs and Twilio TwiML Voice URL.
+- **Production:** `https://website-selling-nu.vercel.app`
