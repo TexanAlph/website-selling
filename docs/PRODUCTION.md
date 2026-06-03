@@ -16,8 +16,9 @@
 | `STORAGE_API_SECRET` | API auth |
 | `OPENROUTER_API_KEY` | Live coach during calls |
 | `OPENROUTER_LIVE_MODEL` | e.g. `deepseek/deepseek-chat-v3-0324` |
-| `GEMINI_API_KEY` | Post-call + nightly analysis only |
-| `GEMINI_MODEL` | e.g. `gemini-2.5-flash-lite` (not deprecated `gemini-2.0-flash`) |
+| `OPENROUTER_API_KEY` | Live coach + post-call + nightly (required) |
+| `OPENROUTER_LIVE_MODEL` | e.g. `deepseek/deepseek-chat-v3-0324` |
+| `GEMINI_API_KEY` | Optional — only if `BATCH_LLM_PROVIDER=gemini` |
 | `DIALER_PASSWORD` / `DIALER_AUTH_SECRET` | App login (`david`, `roslyn`) |
 | Twilio vars | Calling + webhooks |
 

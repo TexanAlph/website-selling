@@ -1,5 +1,5 @@
 import { getCoachStackConfig, requireLiveLlm } from "./config";
-import { llmText, llmTextStream } from "./llm-client";
+import { liveLlmTextStream, warmCoachLlm } from "./batch-llm";
 import { formatPlaybookContext, getPlaybookForNiche } from "./playbook";
 import { fetchLeadContext } from "@/lib/calls/sessions";
 import { normalizeNiche } from "@/lib/calls/niche";
@@ -152,7 +152,7 @@ export async function* streamCoachPipeline(
 
   let full = "";
   const live = requireLiveLlm();
-  for await (const token of llmTextStream(
+  for await (const token of liveLlmTextStream(
     live,
     ctx.systemPrompt,
     ctx.userPrompt,
@@ -183,6 +183,5 @@ export async function* streamCoachPipeline(
 }
 
 export async function warmCoachModel(): Promise<void> {
-  const live = requireLiveLlm();
-  await llmText(live, "Reply with OK only.", "OK", 8);
+  await warmCoachLlm(requireLiveLlm());
 }

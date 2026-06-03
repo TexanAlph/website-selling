@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import type { LeadStatus } from "@/lib/leads";
 import { finalizeCallSession, getSessionRecap } from "@/lib/calls/sessions";
+import { isBatchAnalysisConfigured } from "@/lib/coach/config";
 import { runPostCallSwarm } from "@/lib/coach/post-call";
 import { getSessionUser } from "@/lib/dialer-session";
 
@@ -52,7 +53,7 @@ export async function PATCH(
     const shouldAnalyze =
       !result.alreadyEnded &&
       Boolean(result.transcriptFull) &&
-      Boolean(process.env.GEMINI_API_KEY?.trim());
+      isBatchAnalysisConfigured();
 
     const alreadyProcessing =
       result.alreadyEnded &&

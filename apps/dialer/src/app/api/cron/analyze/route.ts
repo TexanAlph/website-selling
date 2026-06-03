@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 import { resetStaleCallingLeads } from "@/lib/calls/reset-stale-calling";
+import { isBatchAnalysisConfigured } from "@/lib/coach/config";
 import { runPendingCallAnalysis } from "@/lib/coach/analysis-batch";
 
 export const maxDuration = 120;
@@ -10,9 +11,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!process.env.GEMINI_API_KEY?.trim()) {
+  if (!isBatchAnalysisConfigured()) {
     return NextResponse.json(
-      { error: "GEMINI_API_KEY required for nightly analysis" },
+      {
+        error:
+          "Batch analysis not configured — set OPENROUTER_API_KEY on Vercel",
+      },
       { status: 503 },
     );
   }

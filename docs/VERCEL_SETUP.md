@@ -29,8 +29,9 @@ In **Settings** → **Environment Variables** (Production):
 | `TWILIO_*` | Calling |
 | `OPENROUTER_API_KEY` | Live coach (during calls) |
 | `OPENROUTER_LIVE_MODEL` | e.g. `deepseek/deepseek-chat-v3-0324` |
-| `GEMINI_API_KEY` | Post-call + nightly analysis |
-| `GEMINI_MODEL` | e.g. `gemini-2.5-flash-lite` |
+| `OPENROUTER_API_KEY` | Live coach + post-call recap + nightly (required) |
+| `OPENROUTER_LIVE_MODEL` | e.g. `deepseek/deepseek-chat-v3-0324` |
+| `GEMINI_API_KEY` | Optional — only if you set `BATCH_LLM_PROVIDER=gemini` |
 | `DIALER_PASSWORD` / `DIALER_AUTH_SECRET` | App login |
 
 See **[docs/LOCAL_STORAGE.md](LOCAL_STORAGE.md)** for Mac Mini + tunnel setup.

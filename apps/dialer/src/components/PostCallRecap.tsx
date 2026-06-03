@@ -41,7 +41,15 @@ export function PostCallRecap({
       ) : null}
 
       {recap?.summary ? (
-        <p className="post-call-recap-summary">{recap.summary}</p>
+        <p
+          className={
+            recap.analysisStatus === "failed"
+              ? "post-call-recap-summary post-call-recap-summary--failed"
+              : "post-call-recap-summary"
+          }
+        >
+          {recap.summary}
+        </p>
       ) : null}
 
       {recap?.repScore != null ? (

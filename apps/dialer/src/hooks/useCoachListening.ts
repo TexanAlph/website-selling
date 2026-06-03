@@ -60,7 +60,7 @@ export function useCoachListening(
           labels: {
             stt: "Safari speech (free)",
             liveLlm: "Live coach",
-            batchLlm: "Gemini batch",
+            batchLlm: "OpenRouter batch",
           },
         });
       });

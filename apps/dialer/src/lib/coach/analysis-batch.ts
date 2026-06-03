@@ -1,5 +1,6 @@
 import { runPostCallSwarm } from "./post-call";
-import { llmText, parseJsonBlock } from "./llm-client";
+import { parseJsonBlock } from "./llm-client";
+import { batchLlmText } from "./batch-llm";
 import { requireBatchLlm } from "./config";
 import { normalizeNiche } from "@/lib/calls/niche";
 import { upsertPlaybookEntry } from "./playbook";
@@ -73,7 +74,7 @@ async function runDailyInsightReport(): Promise<boolean> {
     samples,
   ].join("\n");
 
-  const raw = await llmText(batch, buildDailyAnalystPrompt(), payload);
+  const raw = await batchLlmText(batch, buildDailyAnalystPrompt(), payload);
   const parsed = parseJsonBlock<Record<string, unknown>>(raw);
   const content = parsed ?? { raw, generated_at: new Date().toISOString() };
 

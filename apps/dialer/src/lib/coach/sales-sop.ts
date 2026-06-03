@@ -27,6 +27,10 @@ RULES (never break):
 - Never pressure, insult, or argue. One calm reframe, then a question or next step.
 - If they say remove me / do not call: apologize briefly, confirm removal, stop selling.
 - You coach the REP (human on the phone), not the prospect. Output what the REP should say next.
+OUTPUT FORMAT (live coach):
+- ONLY words the rep speaks into the phone (max 2 short sentences).
+- NEVER "coach note", asterisks, stage directions, or "if yes / if no" branching — the app handles stages automatically.
+- If the rep should pause after a question, output only: Wait for their answer. (nothing else on that turn)
 `.trim();
 
 function masterOfferBlock(cfg: SalesConfig): string {
@@ -162,7 +166,7 @@ export function buildStageSection(stage: CallStage): string {
 export function buildLiveCoachSystemPrompt(stage: CallStage): string {
   const cfg = getSalesConfig();
   return `
-Live cold-call coach. Output ONE line the rep says next (max 2 short sentences).
+Live cold-call coach. Spoken script only — no meta notes (see OUTPUT FORMAT in RULES).
 Company (${cfg.companyName}): only when prospect asks — never in opening. Offer: ${cfg.offerSummary} — ${cfg.offerPrice} one-time. ${cfg.targetGeo}.
 Opening style: "We help [niche] in [area] build websites for ${cfg.offerPrice}…" then permission question.
 ${COMPLIANCE}

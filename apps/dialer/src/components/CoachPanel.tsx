@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useCoachListening } from "@/hooks/useCoachListening";
-import { parseCounterDisplay } from "@/lib/coach/coach-display";
+import { parseCounterDisplay, sanitizeSayNow } from "@/lib/coach/coach-display";
 import { stageLabel, type CallStage } from "@/lib/coach/call-stage";
 
 type CoachMessage = {
@@ -104,9 +104,11 @@ export function CoachPanel({
       ? stageLabel(latestParsed.stage as CallStage)
       : null;
 
-  const displaySayNow =
+  const displaySayNow = sanitizeSayNow(
     sayNow ||
-    (latestParsed?.text && !streaming ? latestParsed.text : "");
+      (latestParsed?.text && !streaming ? latestParsed.text : "") ||
+      "",
+  );
 
   const contextLine = [companyName, nicheLabel?.trim()]
     .filter(Boolean)

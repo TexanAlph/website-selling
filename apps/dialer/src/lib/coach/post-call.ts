@@ -5,7 +5,8 @@ import {
   markSessionAnalysis,
 } from "@/lib/calls/sessions";
 import { bumpPlaybookOutcomes, upsertPlaybookEntry } from "./playbook";
-import { llmText, parseJsonBlock } from "./llm-client";
+import { parseJsonBlock } from "./llm-client";
+import { batchLlmText, formatAnalysisFailure } from "./batch-llm";
 import { requireBatchLlm } from "./config";
 import { buildPostCallSystemPrompt } from "./sales-sop";
 import * as storage from "@/lib/storage/client";
@@ -51,10 +52,10 @@ export async function runPostCallSwarm(sessionId: string) {
     ].join("\n");
 
     const [summaryRaw, scoreRaw, playbookRaw] = await Promise.all([
-      llmText(batch, buildPostCallSystemPrompt("summarize"), context),
-      llmText(batch, buildPostCallSystemPrompt("score"), context),
+      batchLlmText(batch, buildPostCallSystemPrompt("summarize"), context),
+      batchLlmText(batch, buildPostCallSystemPrompt("score"), context),
       outcome === "Interested/Closed"
-        ? llmText(batch, buildPostCallSystemPrompt("playbook"), context)
+        ? batchLlmText(batch, buildPostCallSystemPrompt("playbook"), context)
         : Promise.resolve(""),
     ]);
 
@@ -106,7 +107,7 @@ export async function runPostCallSwarm(sessionId: string) {
   } catch (e) {
     await markSessionAnalysis(sessionId, {
       analysis_status: "failed",
-      summary: e instanceof Error ? e.message : "Analysis failed",
+      summary: formatAnalysisFailure(e),
     });
     throw e;
   }

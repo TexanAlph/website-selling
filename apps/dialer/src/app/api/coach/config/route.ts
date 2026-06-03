@@ -18,10 +18,12 @@ export async function GET() {
           : "Deepgram — usage-based after free credits.",
       liveLlm:
         stack.liveLlm.provider === "openrouter"
-          ? "OpenRouter + DeepSeek for live coach (pay-per-token, no Gemini rate limits)."
-          : "Gemini for live coach — may hit free-tier RPM on long calls.",
+          ? "OpenRouter + DeepSeek for live coach (default)."
+          : "Gemini for live coach (set LIVE_LLM_PROVIDER=gemini).",
       batchLlm:
-        "Gemini AI Studio free tier — post-call analysis & nightly insights only.",
+        stack.batchLlm.provider === "gemini"
+          ? "Gemini first for recap & nightly — falls back to OpenRouter on 429 if OPENROUTER_API_KEY is set."
+          : "OpenRouter only for batch (BATCH_LLM_PROVIDER=openrouter or no GEMINI_API_KEY).",
     },
   });
 }

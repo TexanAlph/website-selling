@@ -1,4 +1,4 @@
-import { llmText } from "./llm-client";
+import { batchLlmText } from "./batch-llm";
 import { requireLiveLlm } from "./config";
 import {
   buildLiveCoachContext,
@@ -14,7 +14,7 @@ export async function generateCoachLine(
   const ctx = buildLiveCoachContext(input);
   const live = requireLiveLlm();
 
-  const text = await llmText(live, ctx.systemPrompt, ctx.userPrompt, 160);
+  const text = await batchLlmText(live, ctx.systemPrompt, ctx.userPrompt, 160);
 
   return {
     ...ctx,

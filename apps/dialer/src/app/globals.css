@@ -1200,6 +1200,12 @@ body {
   color: var(--text-secondary);
 }
 
+.post-call-recap-summary--failed {
+  color: #fca5a5;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
 .post-call-recap-summary {
   margin: 0.5rem 0 0;
   font-size: 0.875rem;
