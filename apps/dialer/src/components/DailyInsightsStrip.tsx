@@ -5,8 +5,7 @@ import type { InsightsPayload, DailyInsightContent } from "@/hooks/useInsights";
 type Props = {
   data: InsightsPayload | null;
   loading: boolean;
-  onRetryQueue?: () => void;
-  queueError?: string | null;
+  compact?: boolean;
 };
 
 function formatScraperAge(iso: string | undefined): string {
@@ -19,26 +18,43 @@ function formatScraperAge(iso: string | undefined): string {
   return `${days}d ago`;
 }
 
-export function DailyInsightsStrip({
-  data,
-  loading,
-  onRetryQueue,
-  queueError,
-}: Props) {
+function scraperLine(
+  scraper: InsightsPayload["lastScraperRun"] | undefined,
+): string {
+  if (!scraper) return "No scraper runs logged yet";
+  if (scraper.status === "ok") {
+    return `Last refill +${scraper.leads_upserted} leads · ${formatScraperAge(scraper.finished_at ?? scraper.started_at)}`;
+  }
+  if (scraper.status === "error") {
+    return "Scraper issue — check Mac Mini";
+  }
+  return "Scraper running…";
+}
+
+export function DailyInsightsStrip({ data, loading, compact = false }: Props) {
   const content = data?.dailyInsight?.content as DailyInsightContent | undefined;
   const scraper = data?.lastScraperRun;
 
+  if (compact) {
+    const tip =
+      loading && !content?.headline
+        ? "Loading tip…"
+        : content?.headline ??
+          "Daily tip appears after tonight's analysis.";
+    return (
+      <p className="insights-inline" aria-live="polite">
+        <span className="insights-inline__tip">{tip}</span>
+        <span className="insights-inline__sep" aria-hidden>
+          {" "}
+          ·{" "}
+        </span>
+        <span className="insights-inline__meta">{scraperLine(scraper)}</span>
+      </p>
+    );
+  }
+
   return (
     <section className="insights-strip">
-      {queueError && onRetryQueue ? (
-        <div className="insights-strip-error">
-          <p>{queueError}</p>
-          <button type="button" className="btn-ghost text-xs" onClick={onRetryQueue}>
-            Retry
-          </button>
-        </div>
-      ) : null}
-
       {loading && !content?.headline ? (
         <p className="insights-strip-muted">Loading insights…</p>
       ) : content?.headline ? (

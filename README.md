@@ -1,6 +1,6 @@
 # Web Dialer — Cloud Outbound System
 
-Headless Mac Mini scrapes Google Maps leads into **local SQLite** and serves them via a **storage API** (exposed with **Cloudflare Tunnel**). You and your employee run a **mobile-first Next.js dialer** on **Vercel** with **Twilio Voice SDK**, outcome buttons, and a **Gemini-powered AI coach**.
+Headless Mac Mini scrapes Google Maps leads into **local SQLite** and serves them via a **storage API** (exposed with **Cloudflare Tunnel**). Reps run a **mobile-first Next.js dialer** on **Vercel** with **Twilio Voice SDK**, outcome buttons, missed-call history, and a **Gemini-powered AI coach**.
 
 **Two Macs, one repo:** edit on MacBook Air (Cursor) → push GitHub → pull on Mac Mini for scraper/cron only. See **[docs/MACHINES.md](docs/MACHINES.md)** so headless jobs never get installed on the Air by mistake.
 
@@ -9,105 +9,74 @@ Headless Mac Mini scrapes Google Maps leads into **local SQLite** and serves the
 ```
 website-selling/
 ├── scraper/
-│   ├── headless_scraper.py    # Mac Mini — Google Places → Supabase upsert
-│   ├── requirements.txt
-│   └── .env.example
-├── docs/
-│   └── FREE_STACK.md          # Free vs paid provider guide
-├── supabase/
-│   ├── config.toml            # Local CLI (optional)
-│   └── migrations/
-│       ├── 001_create_leads.sql
-│       ├── 002_coach_realtime.sql
-│       └── 005_learning_loop.sql
+│   ├── headless_scraper.py    # Mac Mini — Google Places → SQLite (storage API DB)
+│   └── requirements.txt
+├── storage/
+│   ├── api_server.py          # Mac Mini — FastAPI + SQLite
+│   ├── local_db.py
+│   └── schema.sql
+├── mac-mini/                  # launchd examples, run scripts
 ├── analysis/
 │   └── nightly_analyze.py     # Mac Mini — hits /api/cron/analyze
-└── apps/dialer/               # Next.js — deploy root for Vercel
-    ├── src/
-    │   ├── app/               # Pages + API routes
-    │   ├── components/        # Lead card, dialer, coach panel
-    │   └── lib/               # Supabase, wake lock
-    └── .env.example
+├── docs/
+│   ├── LOCAL_STORAGE.md       # Mac Mini + tunnel (required)
+│   ├── VERCEL_SETUP.md        # Deploy checklist
+│   ├── PRODUCTION.md          # Ops checklist
+│   └── DIALER_APP.md          # App tabs, inbound, UX notes
+├── supabase/migrations/       # Reference SQL only (live DB is SQLite on Mini)
+└── apps/dialer/               # Next.js — Vercel root directory
 ```
 
-## 1. Mac Mini storage + Vercel
+## Quick start
 
-1. Follow **[docs/LOCAL_STORAGE.md](docs/LOCAL_STORAGE.md)** — SQLite on Mac Mini, storage API, **Cloudflare Tunnel** (free).
-2. Set `STORAGE_API_URL` + `STORAGE_API_SECRET` on **Vercel** (same secret on Mac Mini).
-3. **Login:** `david` / `x` + `DIALER_PASSWORD` in env (app cookie session — not cloud auth).
-4. Legacy SQL in `supabase/migrations/` is reference only; the live DB is `~/.web-dialer/dialer.db`.
+| Step | Doc |
+|------|-----|
+| Mac Mini DB + API + tunnel | [docs/LOCAL_STORAGE.md](docs/LOCAL_STORAGE.md) |
+| Vercel deploy + env vars | [docs/VERCEL_SETUP.md](docs/VERCEL_SETUP.md) |
+| Production verify | [docs/PRODUCTION.md](docs/PRODUCTION.md) |
+| How the app works (tabs, inbound) | [docs/DIALER_APP.md](docs/DIALER_APP.md) |
 
-### Leads table (reference)
+1. Set `STORAGE_API_URL` + `STORAGE_API_SECRET` on **Vercel** (same secret on Mac Mini).
+2. **Login:** `david` or `roslyn` + shared `DIALER_PASSWORD` (cookie session — not cloud auth).
+3. Live database: `~/.web-dialer/dialer.db` on the Mac Mini (not Supabase).
 
-| Column         | Type        | Notes                          |
-|----------------|-------------|--------------------------------|
-| id             | uuid        | PK                             |
-| business_name  | text        |                                |
-| phone          | text        | **UNIQUE** — dedup at DB       |
-| website        | text        | null = no/broken site          |
-| status         | text        | Default `New`                  |
-| niche          | text        | e.g. `roofing contractor`      |
-| created_at     | timestamptz |                                |
-
-## 2. Mac Mini headless scraper
+## Mac Mini headless scraper
 
 ```bash
 cd scraper
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # fill GOOGLE_MAPS_API_KEY, SUPABASE_*
+cp .env.example .env   # GOOGLE_MAPS_API_KEY, STORAGE_API_* (see LOCAL_STORAGE.md)
 python headless_scraper.py
 ```
 
 **Google Cloud:** Enable Places API, create API key, restrict to Places.
 
-**Schedule (launchd example)** — save as `~/Library/LaunchAgents/com.webdialer.scraper.plist`:
+Schedule with launchd — see README section in [docs/MACHINES.md](docs/MACHINES.md) or `mac-mini/com.webdialer.scraper.plist.example`.
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>com.webdialer.scraper</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/path/to/scraper/.venv/bin/python</string>
-    <string>/path/to/website-selling/scraper/headless_scraper.py</string>
-  </array>
-  <key>StartCalendarInterval</key>
-  <dict>
-    <key>Hour</key><integer>6</integer>
-    <key>Minute</key><integer>0</integer>
-  </dict>
-  <key>StandardOutPath</key><string>/tmp/webdialer-scraper.log</string>
-  <key>StandardErrorPath</key><string>/tmp/webdialer-scraper.err</string>
-</dict>
-</plist>
-```
+Dedup is by **phone** in SQLite. Scraper pauses Google API when each rep has **100** `New` leads ([docs/PLACES_API_COSTS.md](docs/PLACES_API_COSTS.md)).
 
-Load: `launchctl load ~/Library/LaunchAgents/com.webdialer.scraper.plist`
+## Twilio Voice SDK (browser → PSTN)
 
-Upsert uses `on_conflict=phone` so duplicate numbers never create a second row.
+1. Twilio Console → **API Key** + **TwiML App**.
+2. TwiML App **Voice Request URL (outbound):** `https://YOUR_DOMAIN/api/twilio/voice` (POST).
+3. Your **Twilio phone number** → Voice URL (inbound / voicemail): `https://YOUR_DOMAIN/api/twilio/incoming` (POST).
+4. Buy a voice number → set `TWILIO_CALLER_ID`.
+5. Env vars: `apps/dialer/.env.example`.
 
-## 3. Twilio Voice SDK (browser → PSTN)
+**Trial accounts:** outbound only to [verified numbers](https://www.twilio.com/docs/messaging/guides/how-to-use-your-free-trial-account) until you upgrade.
 
-1. Twilio Console → create **API Key** + **TwiML App**.
-2. TwiML App **Voice Request URL:** `https://YOUR_DOMAIN/api/twilio/voice` (POST).
-3. Buy a voice number → set `TWILIO_CALLER_ID`.
-4. Add env vars from `apps/dialer/.env.example`.
+On iPhone Safari, **Add to Home Screen** for full-screen PWA (icons in `apps/dialer/public/`).
 
-On iPhone Safari, add the site to Home Screen for full-screen dialer UX.
-
-## 4. Vercel deploy
+## Vercel deploy
 
 1. Push repo to GitHub.
-2. Vercel → New Project → import repo.
-3. Set **Root Directory** to `apps/dialer` (critical — see [docs/VERCEL_SETUP.md](docs/VERCEL_SETUP.md)).
-4. Disable **Deployment Protection** on production so iPhone Safari can load the app.
-5. Add all env vars from `apps/dialer/.env.example` (Production).
-6. Redeploy and confirm build takes ~30s+ (Next.js), not ~2s.
+2. Vercel → New Project → **Root Directory:** `apps/dialer` ([docs/VERCEL_SETUP.md](docs/VERCEL_SETUP.md)).
+3. Disable **Deployment Protection** on production (iPhone must load the app).
+4. Add env vars from `apps/dialer/.env.example` (Production).
+5. After Mac Mini API changes, restart `api_server.py` on the Mini.
 
-## 5. Local dev
+## Local dev
 
 ```bash
 cd apps/dialer
@@ -116,49 +85,50 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open on iPhone: same Wi‑Fi → `http://<your-mac-ip>:3000` (or use ngrok for Twilio webhooks).
+**Test mode (no Twilio, no storage):** `NEXT_PUBLIC_DIALER_TEST_MODE=true` in `.env.local` — mock lead and simulated calls.
 
-**Local test dialer (no Twilio, no leads in DB):** set `NEXT_PUBLIC_DIALER_TEST_MODE=true` in `apps/dialer/.env.local`, restart dev server, sign in — you get a mock lead and simulated calls to exercise the full UI.
+## Dialer app (summary)
 
-## Dialer UX (mobile Safari only)
+Three tabs — details in **[docs/DIALER_APP.md](docs/DIALER_APP.md)**:
 
-- **Lead card** — business, niche, website (or “missing” angle).
-- **Call Next Lead** — Twilio `Device.connect({ To: phone })` + Screen Wake Lock.
-- **AI Coach** — free STT (Safari Web Speech by default) → `/api/coach` → Gemini → Supabase Realtime.
-- **Outcomes** — Wrong Number / Not Interested / Interested → updates Supabase → loads next `status = 'New'`.
-- **Call learning** — each call gets a `call_sessions` row; post-call Gemini swarm (summary, score, objections, opener); playbook counters injected live; nightly cron or `analysis/nightly_analyze.py` processes backlog + daily report.
+| Tab | Purpose |
+|-----|---------|
+| **Keypad** | Manual dial, mute/speaker, live coach on call |
+| **Leads** | Queue count, call next lead, outcomes, post-call wrap-up, one-line daily tip + scraper status |
+| **History** | Missed calls (voicemail, call back), past leads (tap reopens on Leads) |
 
-### Call learning loop
+- **Coach** — Web Speech (default) or Deepgram → Gemini counters during calls.
+- **Outcomes** — Wrong number / Not interested / Interested → storage API → next `New` lead.
+- **Inbound** — When the app is closed, Twilio records voicemail; list appears on **History** after storage API is up to date.
+
+## Call learning loop
 
 | Step | What happens |
 |------|----------------|
-| Call start | `POST /api/calls/session` — ties `session_id` to `lead_id` + niche |
-| During call | Transcripts + live counters → `coach_messages` (playbook-aware) |
-| Outcome / hang-up | `PATCH /api/calls/session/:id` — full transcript, outcome, duration |
-| Post-call (background) | 3× Gemini: summarize, score/recommendations, extract winning lines → `call_sessions` + `playbook_entries` |
-| Nightly | Vercel cron `0 7 * * *` or Mac Mini `nightly_analyze.py` → pending sessions + `daily_insights` |
+| Call start | `POST /api/calls/session` — `session_id`, `lead_id`, niche |
+| During call | Transcripts + counters → storage API `coach_messages` |
+| Outcome / hang-up | `PATCH /api/calls/session/:id` — transcript, outcome, duration |
+| Post-call | Gemini analysis → session + playbook (Vercel cron or `nightly_analyze.py`) |
+| Nightly | `/api/cron/analyze` — backlog + `daily_insights` |
 
-Required for full loop: `GEMINI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` + `CRON_SECRET` on Vercel (playbook writes and cron).
+Requires `GEMINI_API_KEY` and `STORAGE_API_*` on Vercel.
 
-### Free-first AI stack
+## AI / cost notes
 
-See **[docs/FREE_STACK.md](docs/FREE_STACK.md)** for cost breakdown and provider choices.
+See **[docs/FREE_STACK.md](docs/FREE_STACK.md)** (some rows still mention Supabase historically; production uses **Mac Mini SQLite**).
 
-| Variable | Default | Cost |
-|----------|---------|------|
-| `COACH_STT_PROVIDER` | `webspeech` | $0 (Safari) |
-| `COACH_STT_PROVIDER` | `auto` + `DEEPGRAM_API_KEY` | ~$200 free credits, then usage |
-| `GEMINI_API_KEY` | `gemini-2.0-flash` | Google AI Studio free tier |
-
-Optional Deepgram uses **mic chunks** (MediaRecorder → `/api/coach` multipart) — works on Vercel without a WebSocket server.
+| Variable | Default | Notes |
+|----------|---------|--------|
+| `COACH_STT_PROVIDER` | `webspeech` | Free on Safari |
+| `GEMINI_API_KEY` | `gemini-2.0-flash` | Coach + post-call |
 
 ## Security checklist
 
-- Never commit `.env` or service role keys.
-- Scraper uses **service role** only on the Mac Mini.
-- Dialer browser uses **anon** + Supabase Auth + RLS.
-- `SUPABASE_SERVICE_ROLE_KEY` only on Vercel server (coach route).
+- Never commit `.env` or `STORAGE_API_SECRET`.
+- `STORAGE_API_SECRET` only on Vercel server + Mac Mini API (Bearer auth).
+- Scraper and storage API run on the Mac Mini only.
+- `DIALER_PASSWORD` / `DIALER_AUTH_SECRET` for rep login cookies.
 
 ## Removed (old stack)
 
-All Vapi outbound automation, Google Sheets sync, SQLite `leads.db`, Flask webhooks, and ML scoring scripts were removed. The Mac Mini now only runs `headless_scraper.py`.
+Vapi outbound automation, Google Sheets sync, Flask webhooks, and Supabase-as-primary DB for the dialer. Optional `supabase/migrations/` remain as reference/schema history.

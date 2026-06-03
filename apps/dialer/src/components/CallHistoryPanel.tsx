@@ -8,12 +8,14 @@ import {
   isMissedUnread,
   missedCallLabel,
 } from "@/lib/calls/inbound";
+import { isHistoryUnavailable, readFetchError } from "@/lib/history-api";
 
 type Props = {
   testMode: boolean;
   onSelectLead: (lead: Lead) => void;
-  onCallBack: (e164: string) => void;
-  compact?: boolean;
+  onCallBack: (phone: string) => void;
+  variant?: "page" | "collapsible";
+  onUnreadChange?: (count: number) => void;
 };
 
 function formatWhen(iso: string): string {
@@ -33,50 +35,77 @@ export function CallHistoryPanel({
   testMode,
   onSelectLead,
   onCallBack,
-  compact = false,
+  variant = "page",
+  onUnreadChange,
 }: Props) {
-  const [open, setOpen] = useState(false);
+  const page = variant === "page";
+  const [open, setOpen] = useState(page);
   const [missed, setMissed] = useState<MissedCall[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [missedUnavailable, setMissedUnavailable] = useState(false);
+  const [missedError, setMissedError] = useState<string | null>(null);
+  const [leadsError, setLeadsError] = useState<string | null>(null);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const unreadCount = missed.filter(isMissedUnread).length;
 
+  useEffect(() => {
+    onUnreadChange?.(unreadCount);
+  }, [unreadCount, onUnreadChange]);
+
   const load = useCallback(async () => {
     if (testMode) {
       setMissed([]);
       setLeads([]);
-      setError(null);
+      setMissedUnavailable(false);
+      setMissedError(null);
+      setLeadsError(null);
+      setPlaybackError(null);
       return;
     }
     setLoading(true);
-    setError(null);
-    try {
-      const [missedRes, leadsRes] = await Promise.all([
-        fetch("/api/calls/missed"),
-        fetch("/api/leads/recent"),
-      ]);
-      const missedJson = await missedRes.json();
-      const leadsJson = await leadsRes.json();
-      if (!missedRes.ok) throw new Error(missedJson.error ?? "Failed to load");
-      if (!leadsRes.ok) throw new Error(leadsJson.error ?? "Failed to load");
-      setMissed((missedJson.calls as MissedCall[]) ?? []);
-      setLeads((leadsJson.leads as Lead[]) ?? []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
-      setMissed([]);
-      setLeads([]);
+    setMissedUnavailable(false);
+    setMissedError(null);
+    setLeadsError(null);
+    setPlaybackError(null);
+
+    const missedRes = await fetch("/api/calls/missed");
+    if (missedRes.ok) {
+      const missedJson = (await missedRes.json()) as { calls?: MissedCall[] };
+      setMissed(missedJson.calls ?? []);
+    } else {
+      const msg = await readFetchError(missedRes);
+      if (isHistoryUnavailable(msg)) {
+        setMissed([]);
+        setMissedUnavailable(true);
+      } else {
+        setMissed([]);
+        setMissedError(msg);
+      }
     }
+
+    const leadsRes = await fetch("/api/leads/recent");
+    if (leadsRes.ok) {
+      const leadsJson = (await leadsRes.json()) as { leads?: Lead[] };
+      setLeads(leadsJson.leads ?? []);
+    } else {
+      const msg = await readFetchError(leadsRes);
+      setLeads([]);
+      if (!isHistoryUnavailable(msg)) {
+        setLeadsError(msg);
+      }
+    }
+
     setLoading(false);
   }, [testMode]);
 
   useEffect(() => {
-    if (!open && !compact) return;
+    if (!page && !open) return;
     void load();
-  }, [open, compact, load]);
+  }, [page, open, load]);
 
   useEffect(() => {
     return () => {
@@ -89,6 +118,7 @@ export function CallHistoryPanel({
     if (!hasVoicemail(call)) return;
     audioRef.current?.pause();
     setPlayingId(call.id);
+    setPlaybackError(null);
     const audio = new Audio(`/api/calls/missed/${call.id}/audio`);
     audioRef.current = audio;
     audio.onended = () => {
@@ -101,13 +131,13 @@ export function CallHistoryPanel({
     };
     audio.onerror = () => {
       setPlayingId(null);
-      setError("Could not play voicemail");
+      setPlaybackError("Could not play voicemail");
     };
     try {
       await audio.play();
     } catch {
       setPlayingId(null);
-      setError("Tap Voicemail again");
+      setPlaybackError("Tap Voicemail again");
     }
   }
 
@@ -119,11 +149,28 @@ export function CallHistoryPanel({
   const body = (
     <div className="call-history-body animate-fade-in">
       {loading ? <p className="call-history-muted">Loading…</p> : null}
-      {error ? <p className="alert-error text-xs">{error}</p> : null}
+      {playbackError ? (
+        <p className="call-history-muted">{playbackError}</p>
+      ) : null}
+      {leadsError ? (
+        <p className="call-history-warn">{leadsError}</p>
+      ) : null}
 
-      {missed.length > 0 ? (
-        <div className="call-history-section">
-          <p className="call-history-section-title">Missed calls</p>
+      <div className="call-history-section">
+        <p className="call-history-section-title">Missed calls</p>
+        {missedError ? (
+          <p className="call-history-warn">{missedError}</p>
+        ) : null}
+        {!loading && missed.length === 0 && !missedError ? (
+          <p className="call-history-muted">No missed calls.</p>
+        ) : null}
+        {missedUnavailable ? (
+          <p className="call-history-setup-hint">
+            Inbound history needs the latest Mac Mini API. Voicemail still
+            records; list appears after the server is updated.
+          </p>
+        ) : null}
+        {missed.length > 0 ? (
           <ul className="call-history-list">
             {missed.map((call) => {
               const unread = isMissedUnread(call);
@@ -171,12 +218,12 @@ export function CallHistoryPanel({
               );
             })}
           </ul>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       <div className="call-history-section">
         <p className="call-history-section-title">Past leads</p>
-        {!loading && leads.length === 0 ? (
+        {!loading && leads.length === 0 && !leadsError ? (
           <p className="call-history-muted">No logged outcomes yet.</p>
         ) : null}
         <ul className="call-history-list">
@@ -203,9 +250,9 @@ export function CallHistoryPanel({
     </div>
   );
 
-  if (compact) {
+  if (page) {
     return (
-      <section className="call-history call-history--compact glass">
+      <section className="call-history call-history--page glass">
         {body}
       </section>
     );

@@ -5,8 +5,6 @@ import { formatDialDisplay, toOutboundE164 } from "@/lib/phone";
 import type { CallPhase } from "@/hooks/usePhoneCall";
 import { CallControlsBar } from "./CallControlsBar";
 import { CoachPanel } from "./CoachPanel";
-import { CallHistoryPanel } from "./CallHistoryPanel";
-import type { Lead } from "@/lib/leads";
 
 const KEYS: { digit: string; sub?: string }[] = [
   { digit: "1" },
@@ -52,8 +50,6 @@ type Props = {
   onEndCall: () => void;
   onToggleSpeaker: () => void;
   onToggleMute: () => void;
-  onCallBack: (phone: string) => void;
-  onSelectRecentLead: (lead: Lead) => void;
 };
 
 export function PhoneKeypad({
@@ -71,8 +67,6 @@ export function PhoneKeypad({
   onEndCall,
   onToggleSpeaker,
   onToggleMute,
-  onCallBack,
-  onSelectRecentLead,
 }: Props) {
   const [raw, setRaw] = useState("");
 
@@ -142,8 +136,7 @@ export function PhoneKeypad({
   }
 
   return (
-    <div className="keypad-shell keypad-shell--with-history">
-      <div className="keypad-main">
+    <div className="keypad-shell">
       <div className="keypad-display">
         {!deviceReady && !testMode && (
           <span className="keypad-status">Connecting…</span>
@@ -214,13 +207,6 @@ export function PhoneKeypad({
           <span className="keypad-action-label">Delete</span>
         </button>
       </div>
-      </div>
-      <CallHistoryPanel
-        testMode={testMode}
-        onSelectLead={onSelectRecentLead}
-        onCallBack={onCallBack}
-        compact
-      />
     </div>
   );
 }

@@ -15,9 +15,11 @@ import { phoneToE164 } from "@/lib/phone";
 import { useMissedCallBadge } from "@/hooks/useMissedCallBadge";
 import { PhoneKeypad } from "./PhoneKeypad";
 import { LeadsQueue } from "./LeadsQueue";
+import { HistoryView } from "./HistoryView";
 import { InstallPrompt } from "./InstallPrompt";
+import { useMissedUnreadCount } from "@/hooks/useMissedUnreadCount";
 
-type Tab = "keypad" | "queue";
+type Tab = "keypad" | "queue" | "history";
 
 async function patchLead(id: string, status: LeadStatus) {
   const res = await fetch(`/api/leads/${id}`, {
@@ -129,7 +131,11 @@ export function Dialer() {
     setRecapSessionId(null);
     setQueueError(null);
     setLead(picked);
+    setTab("queue");
   };
+
+  const { unread: historyUnread, refresh: refreshHistoryUnread } =
+    useMissedUnreadCount(testMode);
 
   const setLeadStatus = async (
     status: LeadStatus,
@@ -269,7 +275,12 @@ export function Dialer() {
           </button>
         </header>
 
-        <TabSwitcher tab={tab} queueCount={queueCount} onChange={setTab} />
+        <TabSwitcher
+          tab={tab}
+          queueCount={queueCount}
+          historyUnread={historyUnread}
+          onChange={setTab}
+        />
       </div>
 
       <InstallPrompt />
@@ -291,10 +302,8 @@ export function Dialer() {
             onToggleSpeaker={() => void phone.toggleSpeaker()}
             muted={phone.muted}
             onToggleMute={() => phone.toggleMute()}
-            onCallBack={handleCallBack}
-            onSelectRecentLead={selectRecentLead}
           />
-        ) : (
+        ) : tab === "queue" ? (
           <LeadsQueue
             lead={lead}
             queueCount={queueCount}
@@ -320,8 +329,13 @@ export function Dialer() {
             onRetryQueue={() => void fetchNextLead()}
             onCallLead={() => void callNextLead()}
             onOutcome={handleOutcome}
-            onSelectRecentLead={selectRecentLead}
+          />
+        ) : (
+          <HistoryView
+            testMode={testMode}
+            onSelectLead={selectRecentLead}
             onCallBack={handleCallBack}
+            onUnreadChange={() => void refreshHistoryUnread()}
           />
         )}
       </div>
@@ -332,18 +346,26 @@ export function Dialer() {
 function TabSwitcher({
   tab,
   queueCount,
+  historyUnread,
   onChange,
 }: {
   tab: Tab;
   queueCount: number | null;
+  historyUnread: number;
   onChange: (tab: Tab) => void;
 }) {
   const leadsBadge =
     queueCount === null ? null : queueCount > 99 ? "99+" : String(queueCount);
+  const historyBadge =
+    historyUnread > 0
+      ? historyUnread > 99
+        ? "99+"
+        : String(historyUnread)
+      : null;
 
   return (
     <div
-      className="segmented relative mb-3"
+      className="segmented segmented--three relative mb-3"
       role="tablist"
       aria-label="Dialer mode"
     >
@@ -372,6 +394,26 @@ function TabSwitcher({
         {leadsBadge !== null ? (
           <span className="segmented-badge" aria-label={`${queueCount} in queue`}>
             {leadsBadge}
+          </span>
+        ) : null}
+      </label>
+
+      <input
+        id="tab-history"
+        type="radio"
+        name="dialer-tab"
+        className="segmented-input"
+        checked={tab === "history"}
+        onChange={() => onChange("history")}
+      />
+      <label htmlFor="tab-history" className="segmented-label" role="tab">
+        History
+        {historyBadge !== null ? (
+          <span
+            className="segmented-badge segmented-badge--alert"
+            aria-label={`${historyUnread} unread missed`}
+          >
+            {historyBadge}
           </span>
         ) : null}
       </label>

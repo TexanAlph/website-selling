@@ -8,8 +8,7 @@ import type { InsightsPayload } from "@/hooks/useInsights";
 import { LeadCard } from "./LeadCard";
 import { CoachPanel } from "./CoachPanel";
 import { PostCallWrapUp } from "./PostCallWrapUp";
-import { LeadsMorePanel } from "./LeadsMorePanel";
-import { CallHistoryPanel } from "./CallHistoryPanel";
+import { DailyInsightsStrip } from "./DailyInsightsStrip";
 import { MAX_NEW_PER_REP, queueCountDisplay } from "@/lib/rep-queue";
 
 type Props = {
@@ -37,8 +36,6 @@ type Props = {
   onRetryQueue: () => void;
   onCallLead: () => void;
   onOutcome: (key: "wrong" | "not_interested" | "interested") => void;
-  onSelectRecentLead: (lead: Lead) => void;
-  onCallBack: (phone: string) => void;
 };
 
 function QueueHero({
@@ -89,8 +86,6 @@ export function LeadsQueue({
   onRetryQueue,
   onCallLead,
   onOutcome,
-  onSelectRecentLead,
-  onCallBack,
 }: Props) {
   const canCall = Boolean(lead) && (testMode || deviceReady) && !loading;
   const needsOutcome =
@@ -177,6 +172,12 @@ export function LeadsQueue({
           storageConfigured={storageConfigured}
         />
 
+        <DailyInsightsStrip
+          data={insights}
+          loading={insightsLoading}
+          compact
+        />
+
         {!lead && !loading && queueCount === 0 && !testMode ? (
           <p className="leads-hint">
             No leads right now — scraper refills when you&apos;re below{" "}
@@ -233,20 +234,18 @@ export function LeadsQueue({
           </div>
         </div>
 
-        {error ? <p className="alert-error leads-error">{error}</p> : null}
-
-        <CallHistoryPanel
-          testMode={testMode}
-          onSelectLead={onSelectRecentLead}
-          onCallBack={onCallBack}
-        />
-
-        <LeadsMorePanel
-          insights={insights}
-          insightsLoading={insightsLoading}
-          queueError={error}
-          onRetryQueue={onRetryQueue}
-        />
+        {error ? (
+          <div className="leads-error-row">
+            <p className="alert-error leads-error">{error}</p>
+            <button
+              type="button"
+              className="btn-ghost text-xs"
+              onClick={onRetryQueue}
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

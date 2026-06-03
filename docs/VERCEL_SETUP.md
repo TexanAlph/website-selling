@@ -44,11 +44,24 @@ Users: `david` and `roslyn`. Password in `DIALER_PASSWORD`.
 https://website-selling-101.vercel.app/api/twilio/voice
 ```
 
-## 6. Smoke test
+## 6. Twilio inbound (voicemail → History tab)
 
-1. Mac Mini: storage API healthy + tunnel reachable from browser: `https://YOUR_TUNNEL/health` (needs Bearer for other routes; `/health` is public).
-2. iPhone opens production URL → login → real leads (not test mode).
-3. Insights strip shows scraper status after first scrape run.
+On your **Twilio phone number**, set Voice URL (POST):
+
+```
+https://YOUR_DOMAIN/api/twilio/incoming
+```
+
+Recording callback is handled by `/api/twilio/recording` (see `TWILIO_WEBHOOK_SECRET` or defaults to `STORAGE_API_SECRET` in `.env.example`).
+
+## 7. Smoke test
+
+1. Mac Mini: `curl http://127.0.0.1:8787/health` and restart `api_server.py` after pulls that touch `storage/`.
+2. iPhone → login (`david` or `roslyn`) → real leads (not test mode).
+3. **Leads** tab — one-line daily tip + scraper status under queue count.
+4. **History** tab — “No missed calls” / “No logged outcomes yet” when empty (not red errors).
+
+See **[DIALER_APP.md](DIALER_APP.md)** for tabs and UX.
 
 ## Production URL
 
