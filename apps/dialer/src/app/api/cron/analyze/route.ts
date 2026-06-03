@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthorizedCron } from "@/lib/cron-auth";
+import { resetStaleCallingLeads } from "@/lib/calls/reset-stale-calling";
 import { runPendingCallAnalysis } from "@/lib/coach/analysis-batch";
 
 export const maxDuration = 120;
@@ -17,8 +18,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const reset = await resetStaleCallingLeads(30);
     const result = await runPendingCallAnalysis();
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, reset, ...result });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Batch failed";
     return NextResponse.json({ error: message }, { status: 500 });

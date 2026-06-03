@@ -58,6 +58,8 @@ COACH_STT_PROVIDER=webspeech
 
 **Gemini free tier** fits batch analysis well. **Live coach** was moved off Gemini to avoid free-tier **requests/minute** limits during active calls.
 
+**Queue cleanup:** stale `Calling` leads reset inside the same **daily** `/api/cron/analyze` job (Hobby-safe). No second Vercel cron required.
+
 ## Setup order
 
 1. Vercel: `STORAGE_API_*`, `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, login + Twilio when ready.

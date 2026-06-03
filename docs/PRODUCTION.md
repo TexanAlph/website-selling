@@ -25,8 +25,9 @@
 
 | Path | Schedule | Action |
 |------|----------|--------|
-| `/api/cron/analyze` | Daily 07:00 UTC | Post-call backlog + daily insights |
-| `/api/cron/reset-calling` | Every 30 min | Stale `Calling` → `New` |
+| `/api/cron/analyze` | Daily 07:00 UTC | Stale `Calling` → `New` (30+ min), then post-call backlog + daily insights |
+
+On **Vercel Hobby**, only **one daily** built-in cron is allowed. `/api/cron/reset-calling` still exists for optional Mac Mini or external schedulers if you need more than once per day.
 
 ## After each deploy
 
