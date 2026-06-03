@@ -7,7 +7,7 @@ set -euo pipefail
 
 REPO="${WEB_DIALER_REPO:-$HOME/website-selling}"
 cd "$REPO"
-git pull --ff-only
+git pull --rebase
 
 cd scraper
 if [[ ! -d .venv ]]; then

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REPO="${WEB_DIALER_REPO:-$HOME/website-selling}"
-cd "$REPO" && git pull --ff-only
+cd "$REPO" && git pull --rebase
 
 cd scraper
 # shellcheck disable=SC1091
