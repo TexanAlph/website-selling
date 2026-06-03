@@ -76,7 +76,7 @@ If **160** were only Text Search HTTP calls (no Details):
 
 ## Reduce spend
 
-- **Rep cap (code):** scraper skips all Google API when both `david` and `x` have **100** `New` leads
+- **Rep cap (code):** scraper skips all Google API when both `david` and `roslyn` have **100** `New` leads
 - Default **40** searches/run, **1** text page, **120** details max (see `headless_scraper.py` constants)
 - `SEARCH_CACHE_TTL_DAYS=14` (env optional)
 - Run **once daily** (cache reuse)

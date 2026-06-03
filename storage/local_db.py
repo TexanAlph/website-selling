@@ -57,42 +57,48 @@ def rows_to_list(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
 # --- Leads ---
 
 
+def normalize_rep(rep: str) -> str:
+    r = rep.strip().lower()
+    return "roslyn" if r == "x" else r
+
+
+def _rep_sql(rep: str) -> tuple[str, tuple[str, ...]]:
+    """Match roslyn queue including legacy assigned_rep = x rows."""
+    r = normalize_rep(rep)
+    if r == "roslyn":
+        return "assigned_rep IN ('roslyn', 'x')", ()
+    return "assigned_rep = ?", (r,)
+
+
 def get_next_lead(rep: str) -> dict[str, Any] | None:
+    rep_clause, rep_params = _rep_sql(rep)
     with connect() as conn:
         init_db(conn)
         row = conn.execute(
-            """
+            f"""
             SELECT * FROM leads
-            WHERE status = 'New' AND assigned_rep = ?
+            WHERE status = 'New' AND {rep_clause}
             ORDER BY created_at ASC
             LIMIT 1
             """,
-            (rep,),
+            rep_params,
         ).fetchone()
         return row_to_dict(row)
 
 
 def count_new_leads(rep: str) -> int:
+    rep_clause, rep_params = _rep_sql(rep)
     with connect() as conn:
         init_db(conn)
         row = conn.execute(
-            "SELECT COUNT(*) AS c FROM leads WHERE status = 'New' AND assigned_rep = ?",
-            (rep,),
+            f"SELECT COUNT(*) AS c FROM leads WHERE status = 'New' AND {rep_clause}",
+            rep_params,
         ).fetchone()
         return int(row["c"]) if row else 0
 
 
-def count_new_per_rep(reps: tuple[str, ...] = ("david", "x")) -> dict[str, int]:
-    with connect() as conn:
-        init_db(conn)
-        out: dict[str, int] = {}
-        for rep in reps:
-            row = conn.execute(
-                "SELECT COUNT(*) AS c FROM leads WHERE status = 'New' AND assigned_rep = ?",
-                (rep,),
-            ).fetchone()
-            out[rep] = int(row["c"]) if row else 0
-        return out
+def count_new_per_rep(reps: tuple[str, ...] = ("david", "roslyn")) -> dict[str, int]:
+    return {rep: count_new_leads(rep) for rep in reps}
 
 
 def update_lead_status(
@@ -102,24 +108,26 @@ def update_lead_status(
     *,
     claim_only: bool = False,
 ) -> bool:
+    rep = normalize_rep(rep)
+    rep_clause, rep_params = _rep_sql(rep)
     now = utc_now()
     with connect() as conn:
         init_db(conn)
         if claim_only:
             cur = conn.execute(
-                """
+                f"""
                 UPDATE leads SET status = ?, status_changed_at = ?
-                WHERE id = ? AND status = 'New' AND assigned_rep = ?
+                WHERE id = ? AND status = 'New' AND {rep_clause}
                 """,
-                (status, now, lead_id, rep),
+                (status, now, lead_id, *rep_params),
             )
         else:
             cur = conn.execute(
-                """
+                f"""
                 UPDATE leads SET status = ?, status_changed_at = ?
-                WHERE id = ? AND assigned_rep = ?
+                WHERE id = ? AND {rep_clause}
                 """,
-                (status, now, lead_id, rep),
+                (status, now, lead_id, *rep_params),
             )
         conn.commit()
         return cur.rowcount > 0
@@ -211,19 +219,120 @@ def get_lead(lead_id: str) -> dict[str, Any] | None:
 def list_recent_leads(rep: str, limit: int = 25) -> list[dict[str, Any]]:
     """Leads with a logged outcome — for callbacks / looking up numbers."""
     limit = max(1, min(int(limit), 50))
+    rep_clause, rep_params = _rep_sql(rep)
     with connect() as conn:
         init_db(conn)
         rows = conn.execute(
-            """
+            f"""
             SELECT * FROM leads
-            WHERE assigned_rep = ?
+            WHERE {rep_clause}
               AND status IN ('Interested/Closed', 'Not Interested', 'Wrong Number')
             ORDER BY status_changed_at DESC
             LIMIT ?
             """,
-            (rep, limit),
+            (*rep_params, limit),
         ).fetchall()
         return [row_to_dict(r) for r in rows if r]
+
+
+def _lead_name_for_phone(conn: sqlite3.Connection, phone: str) -> str | None:
+    row = conn.execute(
+        "SELECT business_name FROM leads WHERE phone = ? LIMIT 1", (phone,)
+    ).fetchone()
+    return str(row["business_name"]) if row else None
+
+
+def create_inbound_call(from_phone: str, call_sid: str | None) -> dict[str, Any]:
+    now = utc_now()
+    cid = new_id()
+    with connect() as conn:
+        init_db(conn)
+        biz = _lead_name_for_phone(conn, from_phone)
+        conn.execute(
+            """
+            INSERT INTO inbound_calls (
+              id, from_phone, call_sid, business_name, created_at
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (cid, from_phone, call_sid, biz, now),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM inbound_calls WHERE id = ?", (cid,)
+        ).fetchone()
+        return row_to_dict(row)  # type: ignore[return-value]
+
+
+def attach_inbound_recording(
+    *,
+    call_sid: str | None = None,
+    inbound_id: str | None = None,
+    recording_sid: str,
+    recording_url: str,
+    duration_seconds: int | None = None,
+) -> bool:
+    now = utc_now()
+    with connect() as conn:
+        init_db(conn)
+        if call_sid:
+            row = conn.execute(
+                "SELECT id FROM inbound_calls WHERE call_sid = ? ORDER BY created_at DESC LIMIT 1",
+                (call_sid,),
+            ).fetchone()
+        elif inbound_id:
+            row = conn.execute(
+                "SELECT id FROM inbound_calls WHERE id = ?", (inbound_id,)
+            ).fetchone()
+        else:
+            return False
+        if not row:
+            return False
+        conn.execute(
+            """
+            UPDATE inbound_calls SET
+              recording_sid = ?, recording_url = ?, duration_seconds = ?
+            WHERE id = ?
+            """,
+            (recording_sid, recording_url, duration_seconds, row["id"]),
+        )
+        conn.commit()
+        return True
+
+
+def list_inbound_calls(limit: int = 30) -> list[dict[str, Any]]:
+    limit = max(1, min(int(limit), 50))
+    with connect() as conn:
+        init_db(conn)
+        rows = conn.execute(
+            """
+            SELECT * FROM inbound_calls
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [row_to_dict(r) for r in rows if r]
+
+
+def mark_inbound_listened(inbound_id: str) -> bool:
+    now = utc_now()
+    with connect() as conn:
+        init_db(conn)
+        cur = conn.execute(
+            "UPDATE inbound_calls SET listened_at = ? WHERE id = ?",
+            (now, inbound_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def get_inbound_call(inbound_id: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        init_db(conn)
+        row = conn.execute(
+            "SELECT * FROM inbound_calls WHERE id = ?", (inbound_id,)
+        ).fetchone()
+        return row_to_dict(row)
 
 
 # --- Call sessions ---

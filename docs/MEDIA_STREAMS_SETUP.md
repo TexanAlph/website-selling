@@ -73,7 +73,7 @@ Redeploy after adding. **No code change** — [voice/route.ts](apps/dialer/src/a
 
 ## Step 4 — Verify on a real call
 
-1. Log in as `david` or `x` on iPhone, start a queue call.
+1. Log in as `david` or `roslyn` on iPhone, start a queue call.
 2. Coach panel header should say **On the call · prospect / you**.
 3. Mac Mini log: `Stream start session=<uuid>`
 4. After a few seconds, **Prospect:** and **You:** lines appear in the dialer.

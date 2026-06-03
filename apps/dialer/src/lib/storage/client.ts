@@ -1,3 +1,4 @@
+import type { MissedCall } from "@/lib/calls/inbound";
 import type { Lead, LeadStatus } from "@/lib/leads";
 
 export function isStorageConfigured(): boolean {
@@ -79,6 +80,57 @@ export async function listRecentLeads(rep: string, limit = 25): Promise<Lead[]> 
     `/leads/recent?rep=${encodeURIComponent(rep)}&limit=${limit}`,
   );
   return leads ?? [];
+}
+
+export async function listMissedCalls(limit = 30): Promise<MissedCall[]> {
+  const { calls } = await storageFetch<{ calls: MissedCall[] }>(
+    `/inbound/missed?limit=${limit}`,
+  );
+  return calls ?? [];
+}
+
+export async function createInboundCall(
+  fromPhone: string,
+  callSid: string | null,
+): Promise<MissedCall> {
+  return storageFetch("/inbound", {
+    method: "POST",
+    body: JSON.stringify({ from_phone: fromPhone, call_sid: callSid }),
+  });
+}
+
+export async function attachInboundRecording(input: {
+  callSid?: string | null;
+  inboundId?: string | null;
+  recordingSid: string;
+  recordingUrl: string;
+  durationSeconds?: number | null;
+}): Promise<boolean> {
+  const { ok } = await storageFetch<{ ok: boolean }>("/inbound/recording", {
+    method: "POST",
+    body: JSON.stringify({
+      call_sid: input.callSid ?? null,
+      inbound_id: input.inboundId ?? null,
+      recording_sid: input.recordingSid,
+      recording_url: input.recordingUrl,
+      duration_seconds: input.durationSeconds ?? null,
+    }),
+  });
+  return ok;
+}
+
+export async function markInboundListened(inboundId: string): Promise<void> {
+  await storageFetch(`/inbound/${inboundId}/listened`, { method: "PATCH" });
+}
+
+export async function getInboundCall(
+  inboundId: string,
+): Promise<MissedCall | null> {
+  try {
+    return await storageFetch<MissedCall>(`/inbound/${inboundId}`);
+  } catch {
+    return null;
+  }
 }
 
 export async function updateLeadStatus(

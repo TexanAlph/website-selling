@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { DIALER_USERNAMES, type DialerUsername } from "@/lib/dialer-auth";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState<DialerUsername | "">("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -17,10 +16,6 @@ export default function LoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!username) {
-      setError("Choose david or x");
-      return;
-    }
     setError(null);
     setLoading(true);
 
@@ -72,7 +67,6 @@ export default function LoginPage() {
         className="glass auth-form rounded-[var(--radius-xl)] p-6 shadow-[0_16px_48px_rgba(0,0,0,0.35)] animate-fade-in"
         autoComplete="off"
       >
-        {/* Absorb iOS Keychain autofill so real fields stay empty on load */}
         <input
           type="text"
           name="prevent_autofill_username"
@@ -94,25 +88,32 @@ export default function LoginPage() {
 
         <div className="space-y-4">
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
-              Rep
-            </p>
-            <div className="auth-rep-picker" role="group" aria-label="Choose rep">
-              {DIALER_USERNAMES.map((rep) => (
-                <button
-                  key={rep}
-                  type="button"
-                  className={`auth-rep-chip ${username === rep ? "auth-rep-chip--active" : ""}`}
-                  aria-pressed={username === rep}
-                  onClick={() => {
-                    setUsername(rep);
-                    setError(null);
-                  }}
-                >
-                  {rep.charAt(0).toUpperCase() + rep.slice(1)}
-                </button>
-              ))}
-            </div>
+            <label
+              htmlFor="dialer-user"
+              className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]"
+            >
+              Username
+            </label>
+            <input
+              id="dialer-user"
+              name="dialer-user"
+              type="text"
+              required
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              data-1p-ignore
+              data-lpignore="true"
+              readOnly
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              onFocus={(e) => {
+                e.currentTarget.removeAttribute("readonly");
+              }}
+              className="input-premium"
+            />
           </div>
 
           <div>
@@ -148,7 +149,7 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={loading || !username}
+          disabled={loading}
           className="btn-primary mt-6 disabled:opacity-50"
         >
           {loading ? "Signing in…" : "Continue"}

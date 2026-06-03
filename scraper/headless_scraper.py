@@ -73,7 +73,7 @@ DEFAULT_SEARCHES_PER_RUN = 40
 SEARCHES_PER_RUN = int(os.getenv("SEARCHES_PER_RUN", str(DEFAULT_SEARCHES_PER_RUN)))
 TEXT_SEARCH_MAX_PAGES = 1
 MAX_DETAILS_PER_RUN = 20  # fallback only — most leads come from search data directly
-REPS = ("david", "x")
+REPS = ("david", "roslyn")
 MAX_NEW_PER_REP = 100
 
 DETAILS_WORKERS = int(os.getenv("DETAILS_WORKERS", "6"))

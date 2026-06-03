@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyCredentials, isAllowedUsername } from "@/lib/dialer-auth";
+import {
+  verifyCredentials,
+  isAllowedUsername,
+  normalizeRepId,
+  type DialerUsername,
+} from "@/lib/dialer-auth";
 import { setSessionCookie } from "@/lib/dialer-session";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const username = String(body.username ?? "").trim().toLowerCase();
+  const username = normalizeRepId(String(body.username ?? "")) as DialerUsername;
   const password = String(body.password ?? "");
 
   if (!isAllowedUsername(username) || !verifyCredentials(username, password)) {

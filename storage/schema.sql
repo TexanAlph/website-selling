@@ -106,3 +106,18 @@ CREATE TABLE IF NOT EXISTS coach_feedback (
   helpful     INTEGER NOT NULL,
   created_at  TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS inbound_calls (
+  id                TEXT PRIMARY KEY,
+  from_phone        TEXT NOT NULL,
+  call_sid          TEXT,
+  recording_sid     TEXT,
+  recording_url     TEXT,
+  duration_seconds  INTEGER,
+  business_name     TEXT,
+  listened_at       TEXT,
+  created_at        TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS inbound_calls_created_idx
+  ON inbound_calls (created_at DESC);

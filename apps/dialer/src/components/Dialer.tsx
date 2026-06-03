@@ -11,8 +11,11 @@ import { useInsights } from "@/hooks/useInsights";
 import { apiCreateCallSession, apiFinalizeCallSession } from "@/lib/calls/client";
 import { hapticOutcome } from "@/lib/haptics";
 import type { DialerUsername } from "@/lib/dialer-auth";
+import { phoneToE164 } from "@/lib/phone";
+import { useMissedCallBadge } from "@/hooks/useMissedCallBadge";
 import { PhoneKeypad } from "./PhoneKeypad";
 import { LeadsQueue } from "./LeadsQueue";
+import { InstallPrompt } from "./InstallPrompt";
 
 type Tab = "keypad" | "queue";
 
@@ -38,6 +41,7 @@ export function Dialer() {
 
   const phone = usePhoneCall();
   const testMode = phone.testMode;
+  useMissedCallBadge(testMode);
   const configReady = phone.config !== null;
   const storageConfigured = phone.config?.storageConfigured ?? false;
   const { queueCount, setQueueCount, refreshQueueCount } = useLeadQueueCount(
@@ -201,7 +205,7 @@ export function Dialer() {
     });
   };
 
-  const startKeypadCall = (e164: string) => {
+  const startOutboundCall = (e164: string) => {
     void phone.startCall(e164, {
       beforeConnect: async (sessionId) => {
         await apiCreateCallSession({
@@ -213,6 +217,17 @@ export function Dialer() {
         await finalizeSession(endedId, { endReason: "hangup" });
       },
     });
+  };
+
+  const handleCallBack = (fromPhone: string) => {
+    const e164 = phoneToE164(fromPhone);
+    if (!e164) {
+      phone.setError("Could not dial that number");
+      return;
+    }
+    if (phone.calling) return;
+    phone.setError(null);
+    startOutboundCall(e164);
   };
 
   const endKeypadCall = () => {
@@ -257,6 +272,8 @@ export function Dialer() {
         <TabSwitcher tab={tab} queueCount={queueCount} onChange={setTab} />
       </div>
 
+      <InstallPrompt />
+
       <div className="app-content safe-x">
         {tab === "keypad" ? (
           <PhoneKeypad
@@ -269,9 +286,13 @@ export function Dialer() {
             speakerSupported={phone.speakerSupported}
             sessionId={phone.sessionId}
             error={error}
-            onStartCall={startKeypadCall}
+            onStartCall={startOutboundCall}
             onEndCall={endKeypadCall}
             onToggleSpeaker={() => void phone.toggleSpeaker()}
+            muted={phone.muted}
+            onToggleMute={() => phone.toggleMute()}
+            onCallBack={handleCallBack}
+            onSelectRecentLead={selectRecentLead}
           />
         ) : (
           <LeadsQueue
@@ -289,6 +310,8 @@ export function Dialer() {
             sessionId={phone.sessionId}
             error={error}
             onToggleSpeaker={() => void phone.toggleSpeaker()}
+            muted={phone.muted}
+            onToggleMute={() => phone.toggleMute()}
             recap={recap}
             recapLoading={recapLoading}
             insights={insights}
@@ -298,6 +321,7 @@ export function Dialer() {
             onCallLead={() => void callNextLead()}
             onOutcome={handleOutcome}
             onSelectRecentLead={selectRecentLead}
+            onCallBack={handleCallBack}
           />
         )}
       </div>

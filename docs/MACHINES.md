@@ -91,7 +91,7 @@ When both reps have **100** `New` leads each, the scraper logs `skipped` and use
 | **Mac Mini SQLite** | All leads, calls, coach data (`~/.web-dialer/dialer.db`) |
 | **Cloudflare Tunnel** | HTTPS from internet → Mac Mini storage API |
 | **Vercel** | Hosts `apps/dialer` (coach API + streaming during calls) |
-| **Twilio** | Voice PSTN from iPhone Safari; one `TWILIO_CALLER_ID`, identities `david` / `x` |
+| **Twilio** | Voice PSTN from iPhone Safari; one `TWILIO_CALLER_ID`, identities `david` / `roslyn` |
 | **Google AI Studio** | Gemini key on Vercel for coach |
 
 ---

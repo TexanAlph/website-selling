@@ -17,3 +17,18 @@ export function toOutboundE164(digits: string): string | null {
   if (d.length >= 10 && d.length <= 15) return `+${d}`;
   return null;
 }
+
+/** Normalize Twilio/inbound numbers like +12105551234 for outbound dial. */
+export function phoneToE164(phone: string): string | null {
+  const trimmed = phone.trim();
+  if (trimmed.startsWith("+")) {
+    const d = trimmed.replace(/\D/g, "");
+    if (d.length >= 10 && d.length <= 15) return `+${d}`;
+  }
+  return toOutboundE164(trimmed);
+}
+
+export function isIosDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+}

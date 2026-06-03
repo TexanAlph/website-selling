@@ -36,7 +36,7 @@ See **[docs/LOCAL_STORAGE.md](LOCAL_STORAGE.md)** for Mac Mini + tunnel setup.
 
 ## 4. App login
 
-Users: `david` and `x`. Password in `DIALER_PASSWORD`.
+Users: `david` and `roslyn`. Password in `DIALER_PASSWORD`.
 
 ## 5. Twilio Voice URL
 

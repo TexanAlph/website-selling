@@ -23,6 +23,6 @@ export const MOCK_TEST_LEAD: Lead = {
   website: null,
   status: "New",
   niche: "roofing contractor",
-  assigned_rep: "david",
+  assigned_rep: "roslyn",
   created_at: new Date().toISOString(),
 };

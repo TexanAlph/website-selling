@@ -92,7 +92,7 @@ export function RecentLeadsPanel({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <span>Recent &amp; callbacks</span>
+        <span>Past leads</span>
         <span className="recent-leads-chevron" aria-hidden>
           {open ? "▾" : "▸"}
         </span>

@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { formatDialDisplay, toOutboundE164 } from "@/lib/phone";
 import type { CallPhase } from "@/hooks/usePhoneCall";
-import { CallStatusBar } from "./CallStatusBar";
+import { CallControlsBar } from "./CallControlsBar";
 import { CoachPanel } from "./CoachPanel";
+import { CallHistoryPanel } from "./CallHistoryPanel";
+import type { Lead } from "@/lib/leads";
 
 const KEYS: { digit: string; sub?: string }[] = [
   { digit: "1" },
@@ -43,11 +45,15 @@ type Props = {
   callStatusLabel: string;
   speakerOn: boolean;
   speakerSupported: boolean;
+  muted: boolean;
   sessionId: string | null;
   error: string | null;
   onStartCall: (e164: string) => void;
   onEndCall: () => void;
   onToggleSpeaker: () => void;
+  onToggleMute: () => void;
+  onCallBack: (phone: string) => void;
+  onSelectRecentLead: (lead: Lead) => void;
 };
 
 export function PhoneKeypad({
@@ -58,11 +64,15 @@ export function PhoneKeypad({
   callStatusLabel,
   speakerOn,
   speakerSupported,
+  muted,
   sessionId,
   error,
   onStartCall,
   onEndCall,
   onToggleSpeaker,
+  onToggleMute,
+  onCallBack,
+  onSelectRecentLead,
 }: Props) {
   const [raw, setRaw] = useState("");
 
@@ -95,13 +105,15 @@ export function PhoneKeypad({
     return (
       <div className="keypad-shell min-h-0">
         <div className="keypad-display">
-          <CallStatusBar
+          <CallControlsBar
             callPhase={callPhase}
             callStatusLabel={callStatusLabel}
             speakerOn={speakerOn}
             speakerSupported={speakerSupported}
+            muted={muted}
             testMode={testMode}
             onToggleSpeaker={onToggleSpeaker}
+            onToggleMute={onToggleMute}
           />
           <p className="dial-display dial-display--active">{display}</p>
         </div>
@@ -130,7 +142,8 @@ export function PhoneKeypad({
   }
 
   return (
-    <div className="keypad-shell">
+    <div className="keypad-shell keypad-shell--with-history">
+      <div className="keypad-main">
       <div className="keypad-display">
         {!deviceReady && !testMode && (
           <span className="keypad-status">Connecting…</span>
@@ -201,6 +214,13 @@ export function PhoneKeypad({
           <span className="keypad-action-label">Delete</span>
         </button>
       </div>
+      </div>
+      <CallHistoryPanel
+        testMode={testMode}
+        onSelectLead={onSelectRecentLead}
+        onCallBack={onCallBack}
+        compact
+      />
     </div>
   );
 }

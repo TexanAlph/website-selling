@@ -9,8 +9,17 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Web Dialer",
+  title: "Dialer",
   description: "Mobile-first outbound dialer for local lead calling",
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

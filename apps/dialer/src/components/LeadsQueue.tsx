@@ -2,13 +2,14 @@
 
 import type { CallPhase } from "@/hooks/usePhoneCall";
 import type { Lead } from "@/lib/leads";
-import { CallStatusBar } from "./CallStatusBar";
+import { CallControlsBar } from "./CallControlsBar";
 import type { SessionRecap } from "@/lib/calls/types";
 import type { InsightsPayload } from "@/hooks/useInsights";
 import { LeadCard } from "./LeadCard";
 import { CoachPanel } from "./CoachPanel";
 import { PostCallWrapUp } from "./PostCallWrapUp";
 import { LeadsMorePanel } from "./LeadsMorePanel";
+import { CallHistoryPanel } from "./CallHistoryPanel";
 import { MAX_NEW_PER_REP, queueCountDisplay } from "@/lib/rep-queue";
 
 type Props = {
@@ -23,9 +24,11 @@ type Props = {
   testMode: boolean;
   speakerOn: boolean;
   speakerSupported: boolean;
+  muted: boolean;
   sessionId: string | null;
   error: string | null;
   onToggleSpeaker: () => void;
+  onToggleMute: () => void;
   recap: SessionRecap | null;
   recapLoading: boolean;
   insights: InsightsPayload | null;
@@ -35,7 +38,31 @@ type Props = {
   onCallLead: () => void;
   onOutcome: (key: "wrong" | "not_interested" | "interested") => void;
   onSelectRecentLead: (lead: Lead) => void;
+  onCallBack: (phone: string) => void;
 };
+
+function QueueHero({
+  queueCount,
+  testMode,
+  storageConfigured,
+}: {
+  queueCount: number | null;
+  testMode: boolean;
+  storageConfigured: boolean;
+}) {
+  const { primary, secondary } = queueCountDisplay(queueCount, {
+    testMode,
+    storageConfigured,
+  });
+  return (
+    <div className="leads-queue-hero" aria-live="polite">
+      <p className="leads-queue-hero__primary">{primary}</p>
+      {secondary ? (
+        <p className="leads-queue-hero__secondary">{secondary}</p>
+      ) : null}
+    </div>
+  );
+}
 
 export function LeadsQueue({
   lead,
@@ -49,9 +76,11 @@ export function LeadsQueue({
   testMode,
   speakerOn,
   speakerSupported,
+  muted,
   sessionId,
   error,
   onToggleSpeaker,
+  onToggleMute,
   recap,
   recapLoading,
   insights,
@@ -61,6 +90,7 @@ export function LeadsQueue({
   onCallLead,
   onOutcome,
   onSelectRecentLead,
+  onCallBack,
 }: Props) {
   const canCall = Boolean(lead) && (testMode || deviceReady) && !loading;
   const needsOutcome =
@@ -68,13 +98,6 @@ export function LeadsQueue({
   const wrapUp =
     !calling &&
     (needsOutcome || recapLoading || Boolean(recap?.summary || recap?.repScore));
-
-  const atCap =
-    !testMode && queueCount !== null && queueCount >= MAX_NEW_PER_REP;
-  const countLabel = queueCountDisplay(queueCount, {
-    testMode,
-    storageConfigured,
-  });
 
   const nicheLabel = lead?.niche?.trim() || null;
   const leadKey = lead?.id ?? "empty";
@@ -97,13 +120,15 @@ export function LeadsQueue({
             >
               End call
             </button>
-            <CallStatusBar
+            <CallControlsBar
               callPhase={callPhase}
               callStatusLabel={callStatusLabel}
               speakerOn={speakerOn}
               speakerSupported={speakerSupported}
+              muted={muted}
               testMode={testMode}
               onToggleSpeaker={onToggleSpeaker}
+              onToggleMute={onToggleMute}
             />
           </div>
         </div>
@@ -125,9 +150,11 @@ export function LeadsQueue({
   if (wrapUp) {
     return (
       <div className="leads-shell leads-shell--wrap-up">
-        <p className="leads-queue-hero" aria-live="polite">
-          {countLabel}
-        </p>
+        <QueueHero
+          queueCount={queueCount}
+          testMode={testMode}
+          storageConfigured={storageConfigured}
+        />
         <PostCallWrapUp
           lead={lead}
           recap={recap}
@@ -142,18 +169,18 @@ export function LeadsQueue({
   }
 
   return (
-    <div className="leads-shell">
+    <div className="leads-shell leads-shell--idle">
       <div className="leads-top">
-        <p className="leads-queue-hero" aria-live="polite">
-          {countLabel}
-        </p>
+        <QueueHero
+          queueCount={queueCount}
+          testMode={testMode}
+          storageConfigured={storageConfigured}
+        />
 
-        {atCap ? (
-          <p className="leads-hint">Queue full — scraper pauses until you log outcomes.</p>
-        ) : null}
         {!lead && !loading && queueCount === 0 && !testMode ? (
           <p className="leads-hint">
-            No leads right now — scraper refills when you&apos;re below {MAX_NEW_PER_REP}.
+            No leads right now — scraper refills when you&apos;re below{" "}
+            {MAX_NEW_PER_REP}.
           </p>
         ) : null}
 
@@ -208,13 +235,17 @@ export function LeadsQueue({
 
         {error ? <p className="alert-error leads-error">{error}</p> : null}
 
-        <LeadsMorePanel
+        <CallHistoryPanel
           testMode={testMode}
+          onSelectLead={onSelectRecentLead}
+          onCallBack={onCallBack}
+        />
+
+        <LeadsMorePanel
           insights={insights}
           insightsLoading={insightsLoading}
           queueError={error}
           onRetryQueue={onRetryQueue}
-          onSelectRecentLead={onSelectRecentLead}
         />
       </div>
     </div>

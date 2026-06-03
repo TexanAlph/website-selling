@@ -4,6 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Device, Call } from "@twilio/voice-sdk";
 import { v4 as uuidv4 } from "uuid";
 import { enableWakeLock, disableWakeLock } from "@/lib/wake-lock";
+import {
+  applySpeakerRoute,
+  createTwilioDevice,
+  detectSpeakerSupport,
+  isTokenError,
+  speakerHint,
+} from "@/lib/twilio-device";
 
 export type CallPhase =
   | "idle"
@@ -18,6 +25,8 @@ export type DialerRuntimeConfig = {
   twilioConfigured: boolean;
 };
 
+const TOKEN_REFRESH_MS = 4 * 60 * 1000;
+
 export function usePhoneCall() {
   const [config, setConfig] = useState<DialerRuntimeConfig | null>(null);
   const testMode = config?.testMode ?? true;
@@ -30,6 +39,8 @@ export function usePhoneCall() {
   const [error, setError] = useState<string | null>(null);
   const [speakerOn, setSpeakerOn] = useState(true);
   const [speakerSupported, setSpeakerSupported] = useState(false);
+  const [iosAudioRoute, setIosAudioRoute] = useState(false);
+  const [muted, setMuted] = useState(false);
 
   const deviceRef = useRef<Device | null>(null);
   const activeCallRef = useRef<Call | null>(null);
@@ -37,10 +48,21 @@ export function usePhoneCall() {
     ((endedSessionId: string | null) => void | Promise<void>) | null
   >(null);
   const sessionIdRef = useRef<string | null>(null);
+  const speakerOnRef = useRef(true);
+  const iosRouteRef = useRef(false);
+  const initLockRef = useRef(false);
 
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
+
+  useEffect(() => {
+    speakerOnRef.current = speakerOn;
+  }, [speakerOn]);
+
+  useEffect(() => {
+    iosRouteRef.current = iosAudioRoute;
+  }, [iosAudioRoute]);
 
   useEffect(() => {
     void fetch("/api/dialer/config")
@@ -63,11 +85,169 @@ export function usePhoneCall() {
 
   const getSessionId = useCallback(() => sessionIdRef.current, []);
 
+  const fetchAccessToken = useCallback(async () => {
+    const res = await fetch("/api/twilio/token", { cache: "no-store" });
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error ?? "Token failed");
+    }
+    return json.token as string;
+  }, []);
+
+  const refreshDeviceToken = useCallback(async () => {
+    const device = deviceRef.current;
+    if (!device) return;
+    try {
+      const token = await fetchAccessToken();
+      device.updateToken(token);
+    } catch {
+      /* next connect will reinit */
+    }
+  }, [fetchAccessToken]);
+
+  const bindDeviceEvents = useCallback(
+    (device: Device) => {
+      device.on("registered", () => {
+        setDeviceReady(true);
+        setError((prev) =>
+          prev && isTokenError(prev) ? null : prev,
+        );
+      });
+      device.on("unregistered", () => {
+        setDeviceReady(false);
+      });
+      device.on("error", (e) => {
+        const msg = e.message || "Twilio device error";
+        if (isTokenError(msg)) {
+          setDeviceReady(false);
+          void reinitializeDevice();
+          return;
+        }
+        setError(msg);
+      });
+      device.on("tokenWillExpire", () => {
+        void refreshDeviceToken();
+      });
+    },
+    [refreshDeviceToken],
+  );
+
+  const reinitializeDevice = useCallback(async (): Promise<Device | null> => {
+    if (initLockRef.current) {
+      await new Promise((r) => setTimeout(r, 400));
+      return deviceRef.current;
+    }
+    initLockRef.current = true;
+    try {
+      try {
+        deviceRef.current?.destroy();
+      } catch {
+        /* ignore */
+      }
+      deviceRef.current = null;
+      setDeviceReady(false);
+
+      const token = await fetchAccessToken();
+      const device = createTwilioDevice(token);
+      bindDeviceEvents(device);
+      await device.register();
+      deviceRef.current = device;
+
+      const spk = detectSpeakerSupport(device);
+      setSpeakerSupported(spk.supported);
+      setIosAudioRoute(spk.iosAudioRoute);
+      if (spk.supported) {
+        const ok = await applySpeakerRoute(device, true);
+        setSpeakerOn(ok || spk.iosAudioRoute);
+      }
+      return device;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Phone reconnect failed");
+      return null;
+    } finally {
+      initLockRef.current = false;
+    }
+  }, [bindDeviceEvents, fetchAccessToken]);
+
+  const ensureDeviceReady = useCallback(async (): Promise<Device> => {
+    let device = deviceRef.current;
+    if (!device) {
+      const created = await reinitializeDevice();
+      if (!created) {
+        throw new Error("Phone not ready — check connection and try again");
+      }
+      return created;
+    }
+
+    try {
+      const token = await fetchAccessToken();
+      device.updateToken(token);
+    } catch {
+      const recreated = await reinitializeDevice();
+      if (!recreated) {
+        throw new Error("Could not refresh phone connection");
+      }
+      return recreated;
+    }
+
+    if (device.state !== Device.State.Registered) {
+      try {
+        await device.register();
+      } catch {
+        const recreated = await reinitializeDevice();
+        if (!recreated) {
+          throw new Error("Phone not registered — retrying connection");
+        }
+        return recreated;
+      }
+    }
+    return device;
+  }, [fetchAccessToken, reinitializeDevice]);
+
+  const endCallInternal = useCallback(
+    async (after?: (endedSessionId: string | null) => void | Promise<void>) => {
+      setCallPhase("disconnecting");
+      setCallStatusLabel("Ending call…");
+
+      const endedSessionId = sessionIdRef.current;
+      onDisconnectRef.current = null;
+
+      const call = activeCallRef.current;
+      if (call && call.status() !== Call.State.Closed) {
+        call.disconnect();
+      }
+      activeCallRef.current = null;
+
+      try {
+        deviceRef.current?.disconnectAll();
+      } catch {
+        /* ignore */
+      }
+
+      setCalling(false);
+      setCallPhase("idle");
+      setCallStatusLabel("");
+      setMuted(false);
+      await disableWakeLock();
+      setSessionId(null);
+      sessionIdRef.current = null;
+      if (after) await after(endedSessionId);
+    },
+    [],
+  );
+
   const attachCallHandlers = useCallback(
-    (call: Call) => {
+    (call: Call, device: Device) => {
       call.on("accept", () => {
         setCallPhase("connected");
-        setCallStatusLabel("Connected — use speaker for prospect audio");
+        void applySpeakerRoute(device, speakerOnRef.current).then((ok) => {
+          setCallStatusLabel(
+            speakerHint(iosRouteRef.current, speakerOnRef.current),
+          );
+          if (!ok && iosRouteRef.current) {
+            setCallStatusLabel(speakerHint(true, true));
+          }
+        });
       });
 
       call.on("ringing", () => {
@@ -94,123 +274,94 @@ export function usePhoneCall() {
       call.on("error", (e) => {
         const msg = e.message || "Call error";
         setError(
-          msg.includes("verified")
-            ? `${msg} — Twilio trial accounts can only call verified numbers.`
+          msg.toLowerCase().includes("verified")
+            ? `${msg} — Twilio trial can only call numbers you verified in the Twilio console.`
             : msg,
         );
         void endCallInternal();
       });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- endCallInternal stable via refs
-    [],
+    [endCallInternal],
   );
 
-  const endCallInternal = useCallback(
-    async (after?: (endedSessionId: string | null) => void | Promise<void>) => {
-      setCallPhase("disconnecting");
-      setCallStatusLabel("Ending call…");
-
-      const endedSessionId = sessionIdRef.current;
-      onDisconnectRef.current = null;
-
-      const call = activeCallRef.current;
-      if (call && call.status() !== Call.State.Closed) {
-        call.disconnect();
-      }
-      activeCallRef.current = null;
-
+  const connectCall = useCallback(
+    async (device: Device, phoneE164: string, sid: string) => {
       try {
-        deviceRef.current?.disconnectAll();
-      } catch {
-        /* ignore */
+        return await device.connect({
+          params: { To: phoneE164, sessionId: sid },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Connect failed";
+        if (!isTokenError(msg)) throw err;
+        const fresh = await reinitializeDevice();
+        if (!fresh) throw err;
+        return fresh.connect({
+          params: { To: phoneE164, sessionId: sid },
+        });
       }
-
-      setCalling(false);
-      setCallPhase("idle");
-      setCallStatusLabel("");
-      await disableWakeLock();
-      setSessionId(null);
-      sessionIdRef.current = null;
-      if (after) await after(endedSessionId);
     },
-    [],
+    [reinitializeDevice],
   );
 
   useEffect(() => {
     if (config === null || testMode) return;
 
-    let cancelled = false;
+    void reinitializeDevice();
 
-    async function initDevice() {
-      try {
-        const res = await fetch("/api/twilio/token");
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error ?? "Token failed");
+    const tokenInterval = window.setInterval(() => {
+      void refreshDeviceToken();
+    }, TOKEN_REFRESH_MS);
 
-        const device = new Device(json.token, {
-          codecPreferences: [Call.Codec.Opus, Call.Codec.PCMU],
-          closeProtection: true,
-        });
-
-        device.on("registered", () => {
-          if (!cancelled) setDeviceReady(true);
-        });
-        device.on("error", (e) => {
-          if (!cancelled) setError(e.message);
-        });
-
-        await device.register();
-        deviceRef.current = device;
-
-        const audio = device.audio;
-        if (audio?.speakerDevices) {
-          setSpeakerSupported(true);
-          try {
-            await audio.speakerDevices.set("default");
-            setSpeakerOn(true);
-          } catch {
-            setSpeakerSupported(false);
-          }
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Twilio init failed");
-        }
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshDeviceToken();
+      if (!deviceRef.current) {
+        void reinitializeDevice();
       }
-    }
-
-    void initDevice();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
 
     return () => {
-      cancelled = true;
-      deviceRef.current?.destroy();
+      window.clearInterval(tokenInterval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      try {
+        deviceRef.current?.destroy();
+      } catch {
+        /* ignore */
+      }
       deviceRef.current = null;
     };
-  }, [config, testMode]);
+  }, [config, testMode, reinitializeDevice, refreshDeviceToken]);
+
+  const toggleMute = useCallback(() => {
+    const call = activeCallRef.current;
+    const next = !muted;
+    if (call && call.status() !== Call.State.Closed) {
+      call.mute(next);
+    }
+    setMuted(next);
+    setCallStatusLabel(
+      next ? "Muted — they cannot hear you" : speakerHint(iosAudioRoute, speakerOn),
+    );
+  }, [muted, iosAudioRoute, speakerOn]);
 
   const toggleSpeaker = useCallback(async () => {
     const device = deviceRef.current;
-    if (!device?.audio?.speakerDevices) {
-      setCallStatusLabel("On iPhone: tap the audio icon in the call bar for speaker");
+    const next = !speakerOn;
+    if (device) {
+      const ok = await applySpeakerRoute(device, next);
+      setSpeakerOn(next);
+      setCallStatusLabel(speakerHint(iosAudioRoute, next));
+      if (!ok && iosAudioRoute) {
+        setCallStatusLabel(speakerHint(true, next));
+      }
       return;
     }
-    try {
-      const next = !speakerOn;
-      if (next) {
-        await device.audio.speakerDevices.set("default");
-      } else {
-        const earpiece = Array.from(device.audio.speakerDevices.get()).find(
-          (d) => d.deviceId !== "default",
-        );
-        if (earpiece) {
-          await device.audio.speakerDevices.set(earpiece.deviceId);
-        }
-      }
-      setSpeakerOn(next);
-    } catch {
-      setCallStatusLabel("Use Control Center audio picker for speakerphone");
-    }
-  }, [speakerOn]);
+    setSpeakerOn(next);
+    setCallStatusLabel(speakerHint(iosAudioRoute, next));
+  }, [speakerOn, iosAudioRoute]);
 
   const endCall = endCallInternal;
 
@@ -252,33 +403,37 @@ export function usePhoneCall() {
           );
         }
 
-        if (!deviceRef.current) {
-          throw new Error("Phone not ready — allow mic access and refresh");
-        }
+        const device = await ensureDeviceReady();
 
         setCalling(true);
         setCallPhase("connecting");
         setCallStatusLabel("Connecting…");
+        setMuted(false);
 
         if (opts?.beforeConnect) await opts.beforeConnect(sid);
 
-        const call = await deviceRef.current.connect({
-          params: { To: phoneE164, sessionId: sid },
-        });
+        const call = await connectCall(device, phoneE164, sid);
 
         activeCallRef.current = call;
-        attachCallHandlers(call);
+        attachCallHandlers(call, device);
 
         if (call.status() === Call.State.Open) {
           setCallPhase("connected");
-          setCallStatusLabel("Connected");
+          setCallStatusLabel(speakerHint(iosAudioRoute, speakerOn));
         } else {
           setCallStatusLabel("Dialing…");
         }
       } catch (e) {
         onDisconnectRef.current = null;
         const message = e instanceof Error ? e.message : "Call failed";
-        setError(message);
+        setError(
+          isTokenError(message)
+            ? "Phone connection expired — reconnecting. Tap Call again."
+            : message,
+        );
+        if (isTokenError(message)) {
+          void reinitializeDevice();
+        }
         setCalling(false);
         setCallPhase("idle");
         setCallStatusLabel("");
@@ -293,6 +448,10 @@ export function usePhoneCall() {
       config?.twilioConfigured,
       endCallInternal,
       attachCallHandlers,
+      ensureDeviceReady,
+      connectCall,
+      iosAudioRoute,
+      speakerOn,
     ],
   );
 
@@ -312,5 +471,8 @@ export function usePhoneCall() {
     speakerOn,
     speakerSupported,
     toggleSpeaker,
+    muted,
+    toggleMute,
+    reinitializePhone: reinitializeDevice,
   };
 }

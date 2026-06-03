@@ -649,14 +649,41 @@ body {
   color: var(--text-primary);
 }
 
-.call-status-bar__speaker-text {
-  display: none;
+.call-controls-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.35rem;
 }
 
-@media (min-width: 380px) {
-  .call-status-bar__speaker-text {
-    display: inline;
-  }
+.call-control-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 3rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: var(--surface-elevated, var(--surface));
+  font-size: 0.5625rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.call-control-btn--active {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.call-control-btn__label {
+  line-height: 1;
+}
+
+.call-status-bar {
+  flex-wrap: wrap;
 }
 
 /* Leads queue — compact card, coach grows on call, dock full width */
@@ -677,12 +704,29 @@ body {
 
 .leads-queue-hero {
   margin: 0 0 0.65rem;
-  font-size: 1.125rem;
+  text-align: center;
+}
+
+.leads-queue-hero__primary {
+  margin: 0;
+  font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
-  text-align: center;
+}
+
+.leads-queue-hero__secondary {
+  margin: 0.25rem 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--text-tertiary);
+}
+
+.leads-shell--idle .leads-top {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.5rem;
 }
 
 .leads-hint {
@@ -1223,6 +1267,279 @@ body {
   font-size: 0.6875rem;
   font-family: ui-monospace, monospace;
   color: var(--accent);
+}
+
+/* Call history — missed + past leads */
+.call-history {
+  margin-top: 0.65rem;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.call-history-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.call-history-toggle__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.call-history-badge {
+  display: inline-flex;
+  min-width: 1.1rem;
+  justify-content: center;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: var(--danger);
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.call-history-chevron {
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+}
+
+.call-history-body {
+  max-height: min(42vh, 320px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 0.65rem 0.65rem;
+}
+
+.call-history-section + .call-history-section {
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.call-history-section-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+}
+
+.call-history-muted {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.call-history-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.call-history-item {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.5rem 0;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.call-history-item:first-child {
+  border-top: none;
+}
+
+.call-history-item--missed .call-history-item__dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+
+.call-history-item__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-top: 0.35rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--text-tertiary);
+}
+
+.call-history-item__main {
+  min-width: 0;
+  flex: 1;
+}
+
+.call-history-item__name {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.call-history-item__meta {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.6875rem;
+  font-family: ui-monospace, monospace;
+  color: var(--text-secondary);
+}
+
+.call-history-item__when {
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+}
+
+.call-history-item:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.call-history-row {
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  padding-top: 0.45rem;
+}
+
+.call-history-row:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.call-history-row-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  padding-left: 1.1rem;
+}
+
+.call-history-action {
+  flex: 1;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.call-history-action--ghost {
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+.call-history-action--call {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.call-history-item--button {
+  width: 100%;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  text-align: left;
+}
+
+.call-history--compact {
+  margin-top: 0.5rem;
+  max-height: 28vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.call-history--compact .call-history-body {
+  max-height: 28vh;
+}
+
+.keypad-shell--with-history {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.keypad-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Safari Add to Home Screen prompt */
+.install-prompt {
+  position: fixed;
+  left: max(0.5rem, env(safe-area-inset-left));
+  right: max(0.5rem, env(safe-area-inset-right));
+  bottom: max(0.5rem, env(safe-area-inset-bottom));
+  z-index: 50;
+  margin: 0 auto;
+  max-width: 22rem;
+  padding: 0.85rem 1rem 0.75rem;
+  border-radius: var(--radius-xl);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.install-prompt__close {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.45rem;
+  padding: 0.2rem 0.45rem;
+  border: none;
+  background: transparent;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.install-prompt__title {
+  margin: 0 1.5rem 0.5rem 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.install-prompt__steps {
+  margin: 0 0 0.65rem;
+  padding-left: 1.15rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.install-prompt__steps li + li {
+  margin-top: 0.35rem;
+}
+
+.install-prompt__icon {
+  font-weight: 700;
+}
+
+.install-prompt__btn {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
 }
 
 /* Lead card — compact queue snippet */

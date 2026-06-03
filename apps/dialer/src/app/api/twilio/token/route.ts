@@ -20,6 +20,7 @@ export async function GET() {
     );
   }
 
+  // Twilio Client identity — must match rep login (david | roslyn)
   const identity = rep;
 
   const AccessToken = twilio.jwt.AccessToken;

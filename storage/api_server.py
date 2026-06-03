@@ -100,6 +100,55 @@ def reset_stale(stale_minutes: int = 30) -> dict[str, int]:
     return {"reset": db.reset_stale_calling(stale_minutes)}
 
 
+class InboundCreate(BaseModel):
+    from_phone: str
+    call_sid: str | None = None
+
+
+class InboundRecording(BaseModel):
+    call_sid: str | None = None
+    inbound_id: str | None = None
+    recording_sid: str
+    recording_url: str
+    duration_seconds: int | None = None
+
+
+@app.get("/inbound/missed", dependencies=[Depends(require_auth)])
+def inbound_missed(limit: int = 30) -> dict[str, list]:
+    capped = max(1, min(limit, 50))
+    return {"calls": db.list_inbound_calls(capped)}
+
+
+@app.post("/inbound", dependencies=[Depends(require_auth)])
+def inbound_create(body: InboundCreate) -> dict[str, Any]:
+    return db.create_inbound_call(body.from_phone, body.call_sid)
+
+
+@app.post("/inbound/recording", dependencies=[Depends(require_auth)])
+def inbound_recording(body: InboundRecording) -> dict[str, bool]:
+    ok = db.attach_inbound_recording(
+        inbound_id=body.inbound_id,
+        call_sid=body.call_sid,
+        recording_sid=body.recording_sid,
+        recording_url=body.recording_url,
+        duration_seconds=body.duration_seconds,
+    )
+    return {"ok": ok}
+
+
+@app.patch("/inbound/{inbound_id}/listened", dependencies=[Depends(require_auth)])
+def inbound_listened(inbound_id: str) -> dict[str, bool]:
+    return {"ok": db.mark_inbound_listened(inbound_id)}
+
+
+@app.get("/inbound/{inbound_id}", dependencies=[Depends(require_auth)])
+def inbound_get(inbound_id: str) -> dict[str, Any]:
+    row = db.get_inbound_call(inbound_id)
+    if not row:
+        raise HTTPException(404, "Inbound call not found")
+    return row
+
+
 @app.get("/leads/{lead_id}", dependencies=[Depends(require_auth)])
 def lead_get(lead_id: str) -> dict[str, Any]:
     row = db.get_lead(lead_id)

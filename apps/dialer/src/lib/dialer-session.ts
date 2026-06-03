@@ -1,7 +1,11 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import type { NextRequest, NextResponse } from "next/server";
-import { isAllowedUsername, type DialerUsername } from "./dialer-auth";
+import {
+  isAllowedUsername,
+  normalizeRepId,
+  type DialerUsername,
+} from "./dialer-auth";
 
 export const SESSION_COOKIE = "dialer_session";
 const MAX_AGE_SEC = 60 * 60 * 24 * 30;
@@ -32,10 +36,10 @@ export async function parseSessionToken(
   try {
     const { payload } = await jwtVerify(token, secretKey());
     const username = payload.username;
-    if (typeof username !== "string" || !isAllowedUsername(username)) {
-      return null;
-    }
-    return username;
+    if (typeof username !== "string") return null;
+    const normalized = normalizeRepId(username);
+    if (!isAllowedUsername(normalized)) return null;
+    return normalized;
   } catch {
     return null;
   }
