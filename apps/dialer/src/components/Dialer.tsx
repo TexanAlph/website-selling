@@ -18,8 +18,7 @@ import { PhoneKeypad } from "./PhoneKeypad";
 import { LeadsQueue } from "./LeadsQueue";
 import { HistoryView } from "./HistoryView";
 import { InstallPrompt } from "./InstallPrompt";
-import { CoachPanel } from "./CoachPanel";
-import { InCallToolbar } from "./InCallToolbar";
+import { InCallScreen } from "./InCallScreen";
 import { useMissedUnreadCount } from "@/hooks/useMissedUnreadCount";
 
 type Tab = "keypad" | "queue" | "history";
@@ -341,82 +340,24 @@ export function Dialer() {
       <div
         className={`app-content safe-x${onCall ? " app-content--on-call" : ""}`}
       >
-        {onCall ? (
-          <div className="in-call-layout">
-            <InCallToolbar
-              callSource={activeCallSource}
-              callPhase={phone.callPhase}
-              callStatusLabel={phone.callStatusLabel}
-              muted={phone.muted}
-              testMode={testMode}
-              lead={lead}
-              dialDisplay={keypadDialDisplay}
-              onEndCall={endActiveCall}
-              onToggleMute={() => phone.toggleMute()}
-              keypadCoachThisCall={keypadCoachThisCall}
-              onKeypadCoachThisCallChange={setKeypadCoachThisCall}
-            />
-            {showLiveCoach ? (
-              <div className="in-call-coach-pane">
-                <CoachPanel
-                  sessionId={phone.sessionId}
-                  leadId={coachLeadId}
-                  nicheLabel={coachNicheLabel}
-                  active
-                  testMode={testMode}
-                />
-              </div>
-            ) : (
-              <div className="keypad-coach-off glass in-call-coach-pane">
-                <p className="keypad-coach-off__title">Regular call</p>
-                <p className="keypad-coach-off__hint">
-                  AI coach is off for this call. Turn it on in the toolbar
-                  above, or set the default on the Keypad tab before you dial.
-                </p>
-              </div>
-            )}
-            <p className="in-call-tab-hint">
-              Switch Keypad, Leads, or History — coach stays here during this
-              call.
-            </p>
-            <div className="in-call-tab-slot">
-              {tab === "keypad" ? (
-                <PhoneKeypad
-                  testMode={phone.testMode}
-                  deviceReady={phone.deviceReady}
-                  callInProgress
-                  error={error}
-                  onStartCall={startOutboundCall}
-                />
-              ) : tab === "queue" ? (
-                <LeadsQueue
-                  lead={lead}
-                  queueCount={queueCount}
-                  testMode={phone.testMode}
-                  storageConfigured={storageConfigured}
-                  loading={loading || !configReady}
-                  callInProgress
-                  deviceReady={phone.deviceReady}
-                  error={error}
-                  recap={recap}
-                  recapLoading={recapLoading}
-                  insights={insights}
-                  insightsLoading={insightsLoading}
-                  onDismissRecap={() => setRecapSessionId(null)}
-                  onRetryQueue={() => void fetchNextLead()}
-                  onCallLead={() => void callNextLead()}
-                  onOutcome={handleOutcome}
-                />
-              ) : (
-                <HistoryView
-                  testMode={testMode}
-                  onSelectLead={selectRecentLead}
-                  onCallBack={handleCallBack}
-                  onUnreadChange={() => void refreshHistoryUnread()}
-                />
-              )}
-            </div>
-          </div>
+        {onCall && activeCallSource ? (
+          <InCallScreen
+            callSource={activeCallSource}
+            callPhase={phone.callPhase}
+            callStatusLabel={phone.callStatusLabel}
+            muted={phone.muted}
+            testMode={testMode}
+            lead={lead}
+            dialDisplay={keypadDialDisplay}
+            sessionId={phone.sessionId}
+            coachLeadId={coachLeadId}
+            coachNicheLabel={coachNicheLabel}
+            showCoach={showLiveCoach}
+            keypadCoachThisCall={keypadCoachThisCall}
+            onKeypadCoachThisCallChange={setKeypadCoachThisCall}
+            onEndCall={endActiveCall}
+            onToggleMute={() => phone.toggleMute()}
+          />
         ) : tab === "keypad" ? (
           <PhoneKeypad
             testMode={phone.testMode}

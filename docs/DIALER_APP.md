@@ -7,7 +7,7 @@ Mobile-first PWA at `apps/dialer` (Vercel). Reps sign in with **`david`** or **`
 | Tab | What you do here |
 |-----|------------------|
 | **Keypad** | **AI coach** has two levels: (1) **Default for next keypad call** on the Keypad tab before you dial; (2) **This call only** in the toolbar while on a keypad call — turning off mid-call does not change your default for the next dial. |
-| **During any live call** | Toolbar + **Say now** coach stay visible on **Keypad, Leads, and History** until you hang up. Lead calls always use coach; keypad calls respect the toggle. |
+| **During any live call** | **iPhone-style call screen**: number on top, **Say now** coach in the middle, **Mute** + red **End** at the bottom. Tabs stay in the header but the call UI is full-screen until hang up. Lead calls always use coach; keypad calls respect the toggle. |
 | **Leads** | See **N leads ready**, current lead card, **Call this lead**, outcome buttons, post-call wrap-up. One line under the queue shows **daily tip** and **last scraper refill** (no extra dropdown). |
 | **History** | **Missed calls** (voicemail + **Call back**), **Past leads** (tap a row → opens that lead on the Leads tab). Badge when unread missed calls exist. |
 
@@ -34,7 +34,9 @@ Restart **`storage/api_server.py`** on the Mac Mini after pulling repo changes t
 | **After the call** (summary, score, playbook) | Gemini first → OpenRouter fallback on 429 | **Vercel** env only |
 | **Nightly tip** | Same (Gemini first, OpenRouter fallback) | Vercel cron |
 
-Live coach uses a **compact SOP prompt** (same compliance and stage rules, fewer tokens). Coaching quality should match before; you mainly avoid Gemini rate limits and repeated huge prompts.
+Live coach uses a **compact SOP prompt** (same compliance and stage rules, fewer tokens). It re-fires when **new prospect speech** arrives (Safari speech, or **Media Streams** prospect leg when `MEDIA_STREAM_WSS_URL` is set). The model is told to **respond to what they said**, not repeat the opening.
+
+**STT note:** `DEEPGRAM_API_KEY` on Vercel alone does **not** switch the phone to browser Deepgram (that fought Twilio for the mic). Use **Media Streams** on the Mac Mini for labeled prospect/rep lines, or Safari speech (mixed audio).
 
 **Not on Mac Mini:** Keep `OPENROUTER_API_KEY` (live coach + fallback) and `GEMINI_API_KEY` (recaps) on Vercel.
 

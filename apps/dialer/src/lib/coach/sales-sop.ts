@@ -7,6 +7,8 @@ import {
 
 export type CoachContextInput = {
   transcript: string;
+  /** Latest prospect speech only (media stream or parsed). */
+  prospectOnly?: string;
   niche?: string | null;
   businessName?: string | null;
   hasWebsite?: boolean;
@@ -194,12 +196,18 @@ export function buildLiveCoachContext(input: CoachContextInput): BuiltCoachConte
     .join("\n\n");
 
   const cfg = getSalesConfig();
+  const prospect = input.prospectOnly?.trim().slice(-400) ?? "";
   const userPrompt = [
     `Company hold (${cfg.companyName} until asked) · ${stageLabel(stage)} · ${niche} · ${business} · area: ${cfg.targetGeo}. ${websiteNote}`,
-    "Transcript:",
-    input.transcript.trim().slice(-700),
-    "Next line only:",
-  ].join("\n");
+    prospect
+      ? "Prospect just said (respond to THIS — do not repeat your opening):"
+      : "Transcript (if prospect already spoke, respond to them — do not repeat opening):",
+    prospect || input.transcript.trim().slice(-700),
+    prospect ? `Full call so far:\n${input.transcript.trim().slice(-500)}` : "",
+    "Your next spoken line only (no coach notes):",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return {
     stage,

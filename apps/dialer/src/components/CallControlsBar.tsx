@@ -8,6 +8,9 @@ type Props = {
   muted: boolean;
   testMode: boolean;
   onToggleMute: () => void;
+  /** iPhone-style bottom dock: mute + red hang up */
+  layout?: "inline" | "dock";
+  onEndCall?: () => void;
 };
 
 function phaseFallback(phase: CallPhase): string {
@@ -37,16 +40,59 @@ function MuteIcon({ muted }: { muted: boolean }) {
   );
 }
 
+function HangUpIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 9c-1.6 0-3.15.75-4.15 1.85l-1.3-1.3-2.32 2.32 1.41 1.41 1.15-1.15C10.85 9.75 11.42 9 12 9s1.15.75 1.65 1.44l1.15 1.15 1.41-1.41-2.32-2.32-1.3 1.3C15.15 9.75 13.6 9 12 9zm-6.3 3.26c2.2 4.08 5.56 7.44 9.64 9.64l2.06-2.06c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V21H4v-2c0-.55.45-1 1-1 1.24 0 2.45-.2 3.57-.57.35-.12.75-.03 1.02.24l2.06 2.06z" />
+    </svg>
+  );
+}
+
 export function CallControlsBar({
   callPhase,
   callStatusLabel,
   muted,
   testMode,
   onToggleMute,
+  layout = "inline",
+  onEndCall,
 }: Props) {
   const label = callStatusLabel.trim() || phaseFallback(callPhase);
   const showControls =
     !testMode && (callPhase === "connected" || callPhase === "ringing");
+
+  if (layout === "dock") {
+    return (
+      <div className="call-dock" role="group" aria-label="Call controls">
+        {showControls ? (
+          <button
+            type="button"
+            className={`call-dock-btn call-dock-btn--mute ${muted ? "call-dock-btn--active" : ""}`}
+            onClick={() => onToggleMute()}
+            aria-pressed={muted}
+            aria-label={muted ? "Unmute microphone" : "Mute microphone"}
+          >
+            <MuteIcon muted={muted} />
+            <span>{muted ? "Unmute" : "Mute"}</span>
+          </button>
+        ) : (
+          <div className="call-dock-spacer" aria-hidden />
+        )}
+        <button
+          type="button"
+          className="call-dock-btn call-dock-btn--end"
+          onClick={() => onEndCall?.()}
+          aria-label="End call"
+        >
+          <HangUpIcon />
+          <span>End</span>
+        </button>
+        {showControls ? (
+          <div className="call-dock-spacer" aria-hidden />
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="call-status-bar" role="status" aria-live="polite">

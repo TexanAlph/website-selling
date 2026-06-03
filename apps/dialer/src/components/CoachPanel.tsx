@@ -18,6 +18,8 @@ type Props = {
   nicheLabel?: string | null;
   active: boolean;
   testMode?: boolean;
+  /** Full-screen in-call layout (iPhone-style). */
+  variant?: "default" | "phone";
 };
 
 export function CoachPanel({
@@ -26,6 +28,7 @@ export function CoachPanel({
   nicheLabel,
   active,
   testMode = false,
+  variant = "default",
 }: Props) {
   const [messages, setMessages] = useState<CoachMessage[]>([]);
   const [feedbackSent, setFeedbackSent] = useState<string | null>(null);
@@ -34,11 +37,8 @@ export function CoachPanel({
   );
   const lastCounterAtRef = useRef<string | null>(null);
 
-  const { listening, sayNow, streaming, companyName } = useCoachListening(
-    sessionId,
-    leadId,
-    active,
-  );
+  const { listening, sayNow, streaming, coachError, companyName } =
+    useCoachListening(sessionId, leadId, active);
 
   useEffect(() => {
     if (!sessionId) {
@@ -129,6 +129,65 @@ export function CoachPanel({
     });
   }
 
+  if (variant === "phone") {
+    return (
+      <section
+        className="coach-panel-phone"
+        aria-label="AI coach"
+      >
+        <div className="coach-panel-phone__meta">
+          {stageBadge ? (
+            <span className="coach-stage-pill">{stageBadge}</span>
+          ) : null}
+          {active && listening ? (
+            <span className="coach-listening-pill" aria-live="polite">
+              <span className="coach-listening-dot" />
+              Listening
+            </span>
+          ) : null}
+        </div>
+        <p className="coach-panel-phone__label">
+          Say now{streaming ? "…" : ""}
+        </p>
+        <p className="coach-panel-phone__script">
+          {displaySayNow ||
+            (streaming
+              ? "…"
+              : "Opening line appears when the call connects.")}
+        </p>
+        {coachError ? (
+          <p className="coach-panel-phone__error" role="alert">
+            {coachError}
+          </p>
+        ) : null}
+        {contextLine ? (
+          <p className="coach-panel-phone__context">{contextLine}</p>
+        ) : null}
+        {active && (feedbackMessageId ?? latestCounter) && feedbackSent !== (feedbackMessageId ?? latestCounter?.id) ? (
+          <div className="coach-feedback-row coach-feedback-row--center">
+            <span className="text-[10px] text-[var(--text-tertiary)]">
+              Helpful?
+            </span>
+            <button
+              type="button"
+              className="coach-feedback-btn"
+              onClick={() => void sendFeedback(true)}
+            >
+              Yes
+            </button>
+            <button
+              type="button"
+              className="coach-feedback-btn"
+              onClick={() => void sendFeedback(false)}
+            >
+              No
+            </button>
+          </div>
+        ) : null}
+      </section>
+    );
+  }
+
   return (
     <section className="glass coach-panel flex min-h-0 flex-1 flex-col rounded-[var(--radius-xl)] p-4">
       <div className="flex items-center justify-between gap-2">
@@ -167,6 +226,11 @@ export function CoachPanel({
                 ? "…"
                 : "Your opening line appears here when the call connects.")}
           </p>
+          {coachError ? (
+            <p className="mt-2 text-[11px] text-red-300/90" role="alert">
+              {coachError}
+            </p>
+          ) : null}
           <p className="mt-2 text-[10px] text-[var(--text-tertiary)]">
             Updates when they speak — no transcript panel, just what to say.
           </p>

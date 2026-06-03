@@ -8,6 +8,7 @@ export async function GET() {
   return NextResponse.json({
     companyName: sales.companyName,
     stt: stack.stt,
+    mediaStreamsEnabled: stack.mediaStreamsEnabled,
     liveLlm: stack.liveLlm,
     batchLlm: stack.batchLlm,
     labels: stack.labels,

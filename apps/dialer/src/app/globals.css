@@ -167,8 +167,190 @@ body {
 }
 
 .app-content--on-call {
+  overflow: hidden;
+}
+
+/* iPhone-style active call screen */
+.iphone-call-screen {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  padding: 0.25rem 0 0.5rem;
+}
+
+.iphone-call-screen__header {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 0.5rem 0.75rem 0.25rem;
+}
+
+.iphone-call-screen__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.iphone-call-screen__number {
+  margin: 0.35rem 0 0;
+  font-size: clamp(1.75rem, 8vw, 2.25rem);
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1.15;
+}
+
+.iphone-call-screen__subtitle {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.35;
+}
+
+.iphone-call-screen__coach {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+}
+
+.iphone-call-screen__coach-off {
+  border-radius: var(--radius-xl);
+  min-height: 10rem;
+}
+
+.iphone-call-screen__footer {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.coach-panel-phone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 0;
+  flex: 1;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+}
+
+.coach-panel-phone__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.coach-panel-phone__label {
+  margin: 0;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent) 75%, var(--text-tertiary));
+}
+
+.coach-panel-phone__script {
+  margin: 0;
+  max-width: 22rem;
+  font-size: clamp(1.05rem, 4.5vw, 1.25rem);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  max-height: min(42vh, 16rem);
+}
+
+.coach-panel-phone__error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #fca5a5;
+}
+
+.coach-panel-phone__context {
+  margin: 0;
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+}
+
+.coach-feedback-row--center {
+  justify-content: center;
+}
+
+.call-dock {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 20rem;
+  margin: 0.75rem auto 0;
+}
+
+.call-dock-spacer {
+  min-width: 4.5rem;
+}
+
+.call-dock-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.call-dock-btn--mute {
+  justify-self: start;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 90%, #fff 8%);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.call-dock-btn--mute.call-dock-btn--active {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.call-dock-btn--end {
+  justify-self: center;
+  grid-column: 2;
+  width: 4.75rem;
+  height: 4.75rem;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(145deg, #f87171 0%, #ef4444 55%, #dc2626 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+    0 10px 28px rgba(248, 113, 113, 0.35);
+}
+
+.call-dock-btn--end:active {
+  transform: scale(0.96);
 }
 
 .in-call-layout {

@@ -1,26 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SttProvider } from "@/lib/coach/types";
+import type { SttProvider, LabeledLine } from "@/lib/coach/types";
 import { hasObjectionCue } from "@/lib/coach/objection-cues";
+import {
+  buildCoachTranscriptFromLines,
+  coachTranscriptFingerprint,
+} from "@/lib/coach/transcript-turn";
 
 type CoachStack = {
   stt: SttProvider;
+  mediaStreamsEnabled: boolean;
   companyName: string;
   labels: { stt: string; liveLlm: string; batchLlm: string };
 };
 
-const SPEECH_PAUSE_MS = 400;
-const SPEECH_PAUSE_OBJECTION_MS = 280;
-const COACH_MIN_GAP_MS = 700;
-const COACH_MIN_GAP_OBJECTION_MS = 350;
+const SPEECH_PAUSE_MS = 550;
+const SPEECH_PAUSE_OBJECTION_MS = 320;
+const COACH_MIN_GAP_MS = 500;
+const COACH_MIN_GAP_OBJECTION_MS = 320;
+const COACH_MIN_GAP_BOOTSTRAP_FOLLOW_MS = 250;
 const DEEPGRAM_CHUNK_MS = 2000;
-
-export type LabeledLine = {
-  speaker: "prospect" | "rep" | "mixed";
-  text: string;
-  interim?: boolean;
-};
+const MEDIA_POLL_MS = 1200;
 
 export function useCoachListening(
   sessionId: string | null,
@@ -29,16 +30,18 @@ export function useCoachListening(
 ) {
   const [stack, setStack] = useState<CoachStack | null>(null);
   const [listening, setListening] = useState(false);
-  const [liveTranscript, setLiveTranscript] = useState("");
-  const [isInterim, setIsInterim] = useState(false);
   const [sayNow, setSayNow] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [coachError, setCoachError] = useState<string | null>(null);
   const [labeledLines, setLabeledLines] = useState<LabeledLine[]>([]);
 
   const lastCoachAt = useRef(0);
+  const bootstrapDoneAt = useRef(0);
+  const lastFingerprint = useRef("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const warmedRef = useRef(false);
+  const lastMediaSig = useRef("");
 
   useEffect(() => {
     void fetch("/api/coach/config")
@@ -46,6 +49,7 @@ export function useCoachListening(
       .then((json) => {
         setStack({
           stt: json.stt,
+          mediaStreamsEnabled: Boolean(json.mediaStreamsEnabled),
           companyName:
             typeof json.companyName === "string"
               ? json.companyName
@@ -56,6 +60,7 @@ export function useCoachListening(
       .catch(() => {
         setStack({
           stt: "webspeech",
+          mediaStreamsEnabled: false,
           companyName: "Apex Build Partners",
           labels: {
             stt: "Safari speech (free)",
@@ -69,10 +74,13 @@ export function useCoachListening(
   useEffect(() => {
     if (!active || !sessionId) {
       setListening(false);
-      setLiveTranscript("");
       setSayNow("");
+      setCoachError(null);
       setLabeledLines([]);
       warmedRef.current = false;
+      lastFingerprint.current = "";
+      lastMediaSig.current = "";
+      bootstrapDoneAt.current = 0;
       return;
     }
     setListening(true);
@@ -82,15 +90,31 @@ export function useCoachListening(
     async (
       transcript: string,
       objection: boolean,
-      opts?: { bootstrap?: boolean },
+      opts?: { bootstrap?: boolean; prospectOnly?: string },
     ) => {
       if (!sessionId) return;
       if (!opts?.bootstrap && !transcript.trim()) return;
 
       const bootstrap = opts?.bootstrap;
+      const fp = bootstrap
+        ? "bootstrap"
+        : coachTranscriptFingerprint(transcript, opts?.prospectOnly);
+      if (!bootstrap && fp === lastFingerprint.current) return;
+
       const minGap = objection ? COACH_MIN_GAP_OBJECTION_MS : COACH_MIN_GAP_MS;
       const now = Date.now();
-      if (!bootstrap && now - lastCoachAt.current < minGap) return;
+      const sinceBootstrap = now - bootstrapDoneAt.current;
+      if (
+        !bootstrap &&
+        sinceBootstrap > 0 &&
+        sinceBootstrap < COACH_MIN_GAP_BOOTSTRAP_FOLLOW_MS
+      ) {
+        /* allow quick follow-up right after opening when prospect answers */
+      } else if (!bootstrap && now - lastCoachAt.current < minGap) {
+        return;
+      }
+
+      if (!bootstrap) lastFingerprint.current = fp;
       lastCoachAt.current = now;
 
       abortRef.current?.abort();
@@ -98,6 +122,7 @@ export function useCoachListening(
       abortRef.current = ac;
 
       setStreaming(true);
+      setCoachError(null);
       if (!bootstrap) setSayNow("");
 
       try {
@@ -107,13 +132,18 @@ export function useCoachListening(
           body: JSON.stringify({
             sessionId,
             leadId,
-            transcript: transcript.slice(-800),
+            transcript: transcript.slice(-900),
+            prospectOnly: opts?.prospectOnly?.slice(-500),
             bootstrap: opts?.bootstrap,
           }),
           signal: ac.signal,
         });
 
         if (!res.ok || !res.body) {
+          const errJson = await res.json().catch(() => ({}));
+          setCoachError(
+            (errJson as { error?: string }).error ?? "Coach unavailable",
+          );
           setStreaming(false);
           return;
         }
@@ -139,7 +169,11 @@ export function useCoachListening(
                 type: string;
                 text?: string;
                 content?: string;
+                message?: string;
               };
+              if (event.type === "error" && event.message) {
+                setCoachError(event.message);
+              }
               if (event.type === "token" && event.text) {
                 setSayNow((prev) => prev + event.text);
               }
@@ -154,6 +188,7 @@ export function useCoachListening(
         }
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") return;
+        setCoachError("Coach connection failed");
       } finally {
         setStreaming(false);
       }
@@ -162,13 +197,15 @@ export function useCoachListening(
   );
 
   const scheduleCoach = useCallback(
-    (snippet: string) => {
-      const objection = hasObjectionCue(snippet);
+    (
+      transcript: string,
+      prospectOnly: string | undefined,
+      objection: boolean,
+    ) => {
       const pauseMs = objection ? SPEECH_PAUSE_OBJECTION_MS : SPEECH_PAUSE_MS;
-
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        void streamToCoach(snippet, objection);
+        void streamToCoach(transcript, objection, { prospectOnly });
       }, pauseMs);
     },
     [streamToCoach],
@@ -178,7 +215,9 @@ export function useCoachListening(
     if (!active || !sessionId || warmedRef.current) return;
     warmedRef.current = true;
     void fetch("/api/coach/warmup", { method: "POST" });
-    void streamToCoach("", false, { bootstrap: true });
+    void streamToCoach("", false, { bootstrap: true }).then(() => {
+      bootstrapDoneAt.current = Date.now();
+    });
   }, [active, sessionId, streamToCoach]);
 
   const sendAudioChunk = useCallback(
@@ -198,6 +237,7 @@ export function useCoachListening(
       form.append("audio", blob, "chunk.webm");
 
       setStreaming(true);
+      setCoachError(null);
       try {
         const res = await fetch("/api/coach/stream", {
           method: "POST",
@@ -232,7 +272,9 @@ export function useCoachListening(
               }
               if (event.type === "done" && event.content) {
                 const match = event.content.match(/^\[[^\]]+\]\s*([\s\S]*)$/);
-                setSayNow(match?.[1]?.trim() ?? event.content);
+                const text = match?.[1]?.trim() ?? event.content;
+                setSayNow(text);
+                lastFingerprint.current = coachTranscriptFingerprint(text);
               }
             } catch {
               /* ignore */
@@ -272,7 +314,7 @@ export function useCoachListening(
         };
         recorder.start(DEEPGRAM_CHUNK_MS);
       } catch {
-        /* mic denied */
+        setCoachError("Mic blocked — use Media Streams or Safari speech");
       }
     }
 
@@ -284,7 +326,7 @@ export function useCoachListening(
   }, [active, sessionId, stack?.stt, sendAudioChunk]);
 
   useEffect(() => {
-    if (!active || !sessionId) return;
+    if (!active || !sessionId || !stack?.mediaStreamsEnabled) return;
 
     const poll = window.setInterval(async () => {
       try {
@@ -293,29 +335,36 @@ export function useCoachListening(
         );
         if (!res.ok) return;
         const json = (await res.json()) as { lines?: LabeledLine[] };
-        if (json.lines?.length) {
-          setLabeledLines(json.lines);
-          const prospectText = json.lines
-            .filter((l) => l.speaker === "prospect")
-            .map((l) => l.text)
-            .join(" ");
-          if (prospectText.trim()) {
-            setLiveTranscript(prospectText);
-            setIsInterim(false);
-            scheduleCoach(prospectText);
-          }
-        }
+        const lines = json.lines ?? [];
+        if (!lines.length) return;
+
+        const sig = lines
+          .map((l) => `${l.speaker}:${l.text}`)
+          .join("|");
+        if (sig === lastMediaSig.current) return;
+        lastMediaSig.current = sig;
+
+        setLabeledLines(lines);
+        const { transcript, prospectOnly } = buildCoachTranscriptFromLines(lines);
+        const trigger = prospectOnly.trim() || transcript.trim();
+        if (!trigger) return;
+
+        scheduleCoach(
+          transcript || trigger,
+          prospectOnly.trim() || undefined,
+          hasObjectionCue(prospectOnly || trigger),
+        );
       } catch {
         /* media stream optional */
       }
-    }, 1500);
+    }, MEDIA_POLL_MS);
 
     return () => clearInterval(poll);
-  }, [active, sessionId, scheduleCoach]);
+  }, [active, sessionId, stack?.mediaStreamsEnabled, scheduleCoach]);
 
   useEffect(() => {
     if (!active || !sessionId || stack?.stt !== "webspeech") return;
-    if (labeledLines.length > 0) return;
+    if (stack.mediaStreamsEnabled && labeledLines.length > 0) return;
 
     const Win = window as Window & {
       webkitSpeechRecognition?: new () => SpeechRecognitionLike;
@@ -323,34 +372,56 @@ export function useCoachListening(
     };
 
     const SR = Win.SpeechRecognition ?? Win.webkitSpeechRecognition;
-    if (!SR) return;
+    if (!SR) {
+      setCoachError(
+        stack.mediaStreamsEnabled
+          ? "Waiting for call audio…"
+          : "Speech recognition not supported in this browser",
+      );
+      return;
+    }
 
     const recognition = new SR();
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
 
-    let buffer = "";
+    let finalBuffer = "";
 
     recognition.onresult = (event: SpeechRecognitionEventLike) => {
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const t = event.results[i][0].transcript;
-        if (event.results[i].isFinal) buffer += ` ${t}`;
+        if (event.results[i].isFinal) finalBuffer += ` ${t}`;
         else interim += t;
       }
-      const snippet = (buffer + interim).trim();
+      const snippet = (finalBuffer + interim).trim();
       if (!snippet) return;
 
-      setLiveTranscript(snippet);
-      setIsInterim(Boolean(interim.trim()));
       setLabeledLines([
         { speaker: "mixed", text: snippet, interim: Boolean(interim.trim()) },
       ]);
-      scheduleCoach(snippet);
+
+      const objection = hasObjectionCue(snippet);
+      scheduleCoach(snippet, undefined, objection);
     };
 
-    recognition.onerror = () => {};
+    recognition.onerror = () => {
+      if (!stack.mediaStreamsEnabled) {
+        setCoachError("Could not hear call — check mic permission");
+      }
+    };
+
+    recognition.onend = () => {
+      if (active && sessionId) {
+        try {
+          recognition.start();
+        } catch {
+          /* restart when iOS stops recognition mid-call */
+        }
+      }
+    };
+
     recognition.start();
 
     return () => {
@@ -358,7 +429,14 @@ export function useCoachListening(
       abortRef.current?.abort();
       recognition.stop();
     };
-  }, [active, sessionId, stack?.stt, scheduleCoach, labeledLines.length]);
+  }, [
+    active,
+    sessionId,
+    stack?.stt,
+    stack?.mediaStreamsEnabled,
+    scheduleCoach,
+    labeledLines.length,
+  ]);
 
   return {
     stack,
@@ -366,6 +444,7 @@ export function useCoachListening(
     listening: active && listening,
     sayNow,
     streaming,
+    coachError,
   };
 }
 
@@ -383,6 +462,7 @@ type SpeechRecognitionLike = {
   lang: string;
   onresult: ((e: SpeechRecognitionEventLike) => void) | null;
   onerror: (() => void) | null;
+  onend: (() => void) | null;
   start: () => void;
   stop: () => void;
 };

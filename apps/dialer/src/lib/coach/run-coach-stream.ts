@@ -89,6 +89,7 @@ async function loadCoachContext(
 
   const ctx = buildLiveCoachContext({
     transcript: trimmed,
+    prospectOnly: prospectOnly?.trim() || undefined,
     niche,
     businessName,
     hasWebsite,

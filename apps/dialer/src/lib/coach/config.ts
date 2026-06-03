@@ -3,6 +3,8 @@ import type { LlmCallConfig } from "./llm-client";
 
 export type CoachStackConfig = {
   stt: SttProvider;
+  /** Twilio Media Streams → Mac Mini Deepgram (prospect vs rep legs) */
+  mediaStreamsEnabled: boolean;
   /** Live coach during calls */
   liveLlm: LlmCallConfig;
   /** Post-call swarm + nightly insights */
@@ -86,20 +88,23 @@ export function isLiveCoachConfigured(): boolean {
 }
 
 /**
- * - STT: Safari Web Speech ($0) unless DEEPGRAM_API_KEY is set
+ * - STT: Safari Web Speech ($0) on the phone by default (no env var required)
+ * - Optional Mac Mini Media Streams when MEDIA_STREAM_WSS_URL is set
+ * - COACH_STT_PROVIDER=deepgram only if you explicitly opt in (conflicts with Twilio)
  * - Live LLM: OpenRouter + DeepSeek (LIVE_LLM_PROVIDER=gemini to try Gemini first)
  * - Batch LLM: Gemini first if GEMINI_API_KEY set, else OpenRouter; auto-fallback on quota
  */
 export function getCoachStackConfig(): CoachStackConfig {
-  const forced = process.env.COACH_STT_PROVIDER?.toLowerCase() ?? "auto";
+  const sttOverride = process.env.COACH_STT_PROVIDER?.trim().toLowerCase();
   const hasDeepgram = Boolean(process.env.DEEPGRAM_API_KEY?.trim());
+  const mediaStreamsEnabled = Boolean(
+    process.env.MEDIA_STREAM_WSS_URL?.trim(),
+  );
 
+  // Default: Safari speech on the phone. No COACH_STT_PROVIDER env needed.
+  // Mac Mini Media Streams (MEDIA_STREAM_WSS_URL) add prospect/rep lines separately.
   let stt: SttProvider = "webspeech";
-  if (forced === "webspeech") {
-    stt = "webspeech";
-  } else if (forced === "deepgram" && hasDeepgram) {
-    stt = "deepgram";
-  } else if (forced === "auto" && hasDeepgram) {
+  if (sttOverride === "deepgram" && hasDeepgram) {
     stt = "deepgram";
   }
 
@@ -112,6 +117,7 @@ export function getCoachStackConfig(): CoachStackConfig {
 
   return {
     stt,
+    mediaStreamsEnabled,
     liveLlm,
     batchLlm,
     labels: {
