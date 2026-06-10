@@ -9,7 +9,10 @@ export async function GET() {
 
   try {
     const payload = await getInsightsPayload();
-    return NextResponse.json(payload);
+    return NextResponse.json(
+      payload,
+      { headers: { "Cache-Control": "private, max-age=600, stale-while-revalidate=3600" } },
+    );
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed to load insights" },

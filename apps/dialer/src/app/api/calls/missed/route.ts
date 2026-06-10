@@ -9,7 +9,10 @@ export async function GET() {
 
   try {
     const calls = await listMissedCalls();
-    return NextResponse.json({ calls });
+    return NextResponse.json(
+      { calls },
+      { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" } },
+    );
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed to load" },

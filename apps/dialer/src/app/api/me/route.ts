@@ -6,5 +6,8 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return NextResponse.json({ username: user });
+  return NextResponse.json(
+    { username: user },
+    { headers: { "Cache-Control": "private, max-age=3600" } },
+  );
 }
