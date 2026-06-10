@@ -7,6 +7,8 @@ export async function GET() {
   const sales = getSalesConfig();
   return NextResponse.json({
     companyName: sales.companyName,
+    offerPrice: sales.offerPrice,
+    targetGeo: sales.targetGeo,
     stt: stack.stt,
     mediaStreamsEnabled: stack.mediaStreamsEnabled,
     liveLlm: stack.liveLlm,

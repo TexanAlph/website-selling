@@ -39,20 +39,41 @@ LOG = logging.getLogger("headless_scraper")
 
 # --- Search configuration (rotate daily through the full matrix) ---
 
-NICHES = [
+# Tier 1 — high ticket, strong website pain, easiest ROI argument.
+# Sampled 3× more often than tier 3.
+NICHES_T1 = [
     "roofing contractor",
     "HVAC contractor",
     "plumber",
     "electrician",
+    "remodeling contractor",
+    "foundation repair",
+    "painting contractor",
+    "tree service",
+    "flooring contractor",
+]
+
+# Tier 2 — solid mid-ticket, good Google search intent.
+NICHES_T2 = [
     "landscaping",
     "pest control",
     "garage door repair",
     "fence company",
-    "pressure washing",
+    "concrete contractor",
+    "gutter cleaning",
+    "irrigation company",
+    "window cleaning",
+    "junk removal",
     "pool service",
+]
+
+# Tier 3 — lower ticket or more social-media-heavy (still worth calling).
+NICHES_T3 = [
+    "pressure washing",
     "cleaning service",
     "auto repair",
     "auto detailing",
+    "mobile mechanic",
     "barbershop",
     "nail salon",
     "tattoo shop",
@@ -67,7 +88,27 @@ AREAS = [
     "Schertz Texas",
     "Universal City Texas",
     "Helotes Texas",
+    "New Braunfels Texas",
+    "Boerne Texas",
+    "Seguin Texas",
+    "Floresville Texas",
 ]
+
+# Buyers: established enough to have reviews and budget, small enough to not
+# have an agency. Chains/franchises with 500+ reviews already have pros.
+MIN_REVIEWS = 3
+MAX_REVIEWS = int(os.getenv("SCRAPER_MAX_REVIEWS", "400"))
+MIN_RATING = float(os.getenv("SCRAPER_MIN_RATING", "2.5"))
+
+# Franchise/chain patterns — skip anything that matches; they won't buy.
+_CHAIN_RE = re.compile(
+    r"\b(mcdonalds|mcdonald|subway|dominos|pizza hut|starbucks|walmart|target|"
+    r"home depot|lowes|autozone|jiffy lube|midas|merry maids|servpro|servmaster|"
+    r"terminix|molly maid|angi|homeadvisor|snap-on|grease monkey|"
+    r"christian brothers|take 5 oil|firestone|pep boys|napa auto|"
+    r"great clips|sport clips|supercuts|fantastic sams)\b",
+    re.IGNORECASE,
+)
 
 DEFAULT_SEARCHES_PER_RUN = 40
 SEARCHES_PER_RUN = int(os.getenv("SEARCHES_PER_RUN", str(DEFAULT_SEARCHES_PER_RUN)))
@@ -89,11 +130,12 @@ PLACES_DETAILS_URL = "https://places.googleapis.com/v1/places"
 
 # Text Search fetches all fields we need to build a lead — websiteUri lets us
 # pre-filter businesses with websites before ever calling Place Details.
-# This upgrades Text Search from Basic → Advanced SKU ($32→$35/1000) but
-# eliminates ~90% of Details calls ($20/1000 each), a large net saving.
+# rating + userRatingCount are included in the Advanced SKU at no extra cost;
+# they let us skip ghosts (0 reviews) and chains (500+ reviews).
 TEXT_SEARCH_FIELD_MASK = (
     "places.id,places.websiteUri,places.nationalPhoneNumber,"
     "places.displayName,places.formattedAddress,places.businessStatus,"
+    "places.rating,places.userRatingCount,"
     "nextPageToken"
 )
 
@@ -219,6 +261,19 @@ def _niche_from_query(query: str) -> str:
     return query
 
 
+def _quality_ok(place: dict) -> bool:
+    """True when the business is real, established, and small enough to buy."""
+    rating = place.get("rating") or 0.0
+    count = place.get("userRatingCount") or 0
+    if count > 0 and count < MIN_REVIEWS:
+        return False
+    if count > MAX_REVIEWS:
+        return False
+    if count >= MIN_REVIEWS and rating < MIN_RATING:
+        return False
+    return True
+
+
 def lead_from_place(place: dict, query: str) -> LeadRow | None:
     """Build a lead directly from Text Search data — no Details call needed."""
     if place.get("websiteUri"):
@@ -227,6 +282,10 @@ def lead_from_place(place: dict, query: str) -> LeadRow | None:
         return None
     name = (place.get("displayName") or {}).get("text", "").strip()
     if not name:
+        return None
+    if _CHAIN_RE.search(name):
+        return None
+    if not _quality_ok(place):
         return None
     phone = normalize_phone(place.get("nationalPhoneNumber"))
     if not phone:
@@ -361,9 +420,20 @@ def main() -> None:
         search_cache = load_json(SEARCH_CACHE_FILE, {})
         seen_ids = set(load_json(SEEN_PLACE_IDS_FILE, []))
 
-        all_queries = [f"{niche} {area}" for niche in NICHES for area in AREAS]
+        # Weighted sampling: tier-1 niches get 3× slots, tier-2 gets 2×.
         rng = random.Random(date.today().toordinal())
-        rng.shuffle(all_queries)
+        niche_pool = (
+            NICHES_T1 * 3
+            + NICHES_T2 * 2
+            + NICHES_T3
+        )
+        niches_today = rng.sample(niche_pool, min(SEARCHES_PER_RUN, len(niche_pool)))
+        areas_cycle = AREAS[:]
+        rng.shuffle(areas_cycle)
+        all_queries: list[str] = []
+        for i, niche in enumerate(niches_today):
+            area = areas_cycle[i % len(areas_cycle)]
+            all_queries.append(f"{niche} {area}")
         queries = all_queries[:SEARCHES_PER_RUN]
 
         LOG.info("Running %d searches (TTL %dd)...", len(queries), SEARCH_CACHE_TTL_DAYS)

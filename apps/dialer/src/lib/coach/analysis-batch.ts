@@ -65,10 +65,25 @@ async function runDailyInsightReport(): Promise<boolean> {
     )
     .join("\n");
 
+  const nicheMap: Record<string, { calls: number; wins: number }> = {};
+  for (const s of sessions) {
+    const n = normalizeNiche(s.niche) || "unknown";
+    if (!nicheMap[n]) nicheMap[n] = { calls: 0, wins: 0 };
+    nicheMap[n].calls++;
+    if (s.outcome_status === "Interested/Closed") nicheMap[n].wins++;
+  }
+  const nicheBreakdown = Object.entries(nicheMap)
+    .sort((a, b) => b[1].calls - a[1].calls)
+    .map(([n, d]) => `  ${n}: ${d.wins}/${d.calls} won`)
+    .join("\n");
+
   const payload = [
     `Calls last 7d: ${sessions.length}`,
     `Interested: ${interested}, Not interested: ${notInterested}, Wrong: ${wrong}`,
     `Avg rep score: ${avgScore.toFixed(1)}`,
+    "",
+    "Win rate by niche:",
+    nicheBreakdown,
     "",
     "Samples:",
     samples,
