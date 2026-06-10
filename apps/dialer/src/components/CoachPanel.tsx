@@ -37,7 +37,7 @@ export function CoachPanel({
   );
   const lastCounterAtRef = useRef<string | null>(null);
 
-  const { listening, sayNow, streaming, coachError, companyName } =
+  const { listening, sayNow, streaming, coachError, companyName, nextHints } =
     useCoachListening(sessionId, leadId, active);
 
   useEffect(() => {
@@ -160,6 +160,21 @@ export function CoachPanel({
             {coachError}
           </p>
         ) : null}
+        {active && !streaming && nextHints.length ? (
+          <div className="mt-2 space-y-1">
+            {nextHints.map((h) => (
+              <p
+                key={h.label}
+                className="text-[11px] leading-snug text-[var(--text-tertiary)]"
+              >
+                <span className="font-semibold text-[var(--text-secondary)]">
+                  If &ldquo;{h.label}&rdquo;:
+                </span>{" "}
+                {h.line}
+              </p>
+            ))}
+          </div>
+        ) : null}
         {contextLine ? (
           <p className="coach-panel-phone__context">{contextLine}</p>
         ) : null}
@@ -230,6 +245,21 @@ export function CoachPanel({
             <p className="mt-2 text-[11px] text-red-300/90" role="alert">
               {coachError}
             </p>
+          ) : null}
+          {!streaming && nextHints.length ? (
+            <div className="mt-3 space-y-1 border-t border-emerald-500/15 pt-2">
+              {nextHints.map((h) => (
+                <p
+                  key={h.label}
+                  className="text-[11px] leading-snug text-[var(--text-tertiary)]"
+                >
+                  <span className="font-semibold text-emerald-400/80">
+                    If &ldquo;{h.label}&rdquo;:
+                  </span>{" "}
+                  {h.line}
+                </p>
+              ))}
+            </div>
           ) : null}
           <p className="mt-2 text-[10px] text-[var(--text-tertiary)]">
             Updates when they speak — no transcript panel, just what to say.

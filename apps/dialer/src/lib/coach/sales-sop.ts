@@ -14,6 +14,10 @@ export type CoachContextInput = {
   hasWebsite?: boolean;
   playbookContext?: string;
   previousStage?: CallStage;
+  /** CALL MEMORY block — objections raised, lines already suggested (call-memory.ts). */
+  memoryContext?: string;
+  /** Library counters matched to what the prospect just said (objection-library.ts). */
+  matchedObjectionContext?: string;
 };
 
 export type BuiltCoachContext = {
@@ -29,6 +33,7 @@ RULES (never break):
 - Never pressure, insult, or argue. One calm reframe, then a question or next step.
 - If they say remove me / do not call: apologize briefly, confirm removal, stop selling.
 - You coach the REP (human on the phone), not the prospect. Output what the REP should say next.
+- Never repeat a line you already suggested this call (CALL MEMORY lists them). If an objection comes back, use a NEW angle or move the sale forward.
 OUTPUT FORMAT (live coach):
 - ONLY words the rep speaks into the phone (max 2 short sentences).
 - NEVER "coach note", asterisks, stage directions, or "if yes / if no" branching — the app handles stages automatically.
@@ -188,6 +193,9 @@ export function buildLiveCoachContext(input: CoachContextInput): BuiltCoachConte
 
   const systemPrompt = [
     buildLiveCoachSystemPrompt(stage),
+    input.matchedObjectionContext?.trim()
+      ? `PROVEN COUNTERS for what they just said — adapt naturally, don't read robotically:\n${input.matchedObjectionContext.trim()}`
+      : "",
     input.playbookContext?.trim()
       ? `Playbook hits:\n${input.playbookContext.trim().slice(0, 500)}`
       : "",
@@ -199,6 +207,7 @@ export function buildLiveCoachContext(input: CoachContextInput): BuiltCoachConte
   const prospect = input.prospectOnly?.trim().slice(-400) ?? "";
   const userPrompt = [
     `Company hold (${cfg.companyName} until asked) · ${stageLabel(stage)} · ${niche} · ${business} · area: ${cfg.targetGeo}. ${websiteNote}`,
+    input.memoryContext?.trim() ?? "",
     prospect
       ? "Prospect just said (respond to THIS — do not repeat your opening):"
       : "Transcript (if prospect already spoke, respond to them — do not repeat opening):",

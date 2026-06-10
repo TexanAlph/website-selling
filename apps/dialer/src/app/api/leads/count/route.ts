@@ -10,7 +10,10 @@ export async function GET() {
 
   try {
     const queueCount = await countNewLeads(rep);
-    return NextResponse.json({ queueCount });
+    return NextResponse.json(
+      { queueCount },
+      { headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=30" } },
+    );
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Database error" },

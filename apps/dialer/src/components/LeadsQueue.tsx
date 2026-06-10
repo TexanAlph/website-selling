@@ -6,6 +6,7 @@ import type { InsightsPayload } from "@/hooks/useInsights";
 import { LeadCard } from "./LeadCard";
 import { PostCallWrapUp } from "./PostCallWrapUp";
 import { DailyInsightsStrip } from "./DailyInsightsStrip";
+import { PreCallBrief } from "./PreCallBrief";
 import { MAX_NEW_PER_REP, queueCountDisplay } from "@/lib/rep-queue";
 
 type Props = {
@@ -131,6 +132,10 @@ export function LeadsQueue({
         <div key={leadKey} className="lead-card-slot animate-lead-in">
           <LeadCard lead={lead} loading={loading && !lead} variant="compact" />
         </div>
+
+        {lead && !loading ? (
+          <PreCallBrief niche={lead.niche ?? null} />
+        ) : null}
 
         <div className="leads-actions">
           <button

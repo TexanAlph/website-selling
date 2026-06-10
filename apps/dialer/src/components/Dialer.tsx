@@ -280,7 +280,10 @@ export function Dialer() {
     else void endQueueCall();
   };
 
-  const onCall = phone.calling && activeCallSource;
+  // Show the in-call screen as soon as the user taps — before phone.calling is
+  // true — so there's zero perceptible delay between tap and screen transition.
+  const onCall = activeCallSource !== null && (phone.calling || phone.callPhase === "connecting");
+  const effectiveCallPhase = !phone.calling && activeCallSource ? "connecting" : phone.callPhase;
   const showLiveCoach = Boolean(
     onCall &&
       (activeCallSource === "queue" ||
@@ -299,10 +302,10 @@ export function Dialer() {
     void setLeadStatus(OUTCOME_STATUSES[key], key);
   };
 
-  async function signOut() {
+  const signOut = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
-  }
+  }, []);
 
   const repLabel = username
     ? username.charAt(0).toUpperCase() + username.slice(1)
@@ -320,7 +323,7 @@ export function Dialer() {
           </div>
           <button
             type="button"
-            onClick={() => void signOut()}
+            onClick={() => { void signOut(); }}
             className="btn-ghost rounded-full px-2.5 py-1 text-xs font-medium text-[var(--text-tertiary)]"
           >
             Sign out
@@ -343,7 +346,7 @@ export function Dialer() {
         {onCall && activeCallSource ? (
           <InCallScreen
             callSource={activeCallSource}
-            callPhase={phone.callPhase}
+            callPhase={effectiveCallPhase}
             callStatusLabel={phone.callStatusLabel}
             muted={phone.muted}
             testMode={testMode}

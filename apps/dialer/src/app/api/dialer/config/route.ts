@@ -16,9 +16,8 @@ export async function GET() {
       process.env.TWILIO_CALLER_ID?.trim(),
   );
 
-  return NextResponse.json({
-    testMode,
-    storageConfigured,
-    twilioConfigured,
-  });
+  return NextResponse.json(
+    { testMode, storageConfigured, twilioConfigured },
+    { headers: { "Cache-Control": "private, max-age=300, stale-while-revalidate=60" } },
+  );
 }

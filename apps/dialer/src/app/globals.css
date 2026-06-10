@@ -35,23 +35,21 @@ body {
 }
 
 body {
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, var(--font-sans), system-ui, sans-serif;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg);
   background-image:
     radial-gradient(
-      ellipse 120% 80% at 50% -30%,
-      rgba(52, 211, 153, 0.12),
+      ellipse 100% 60% at 50% -20%,
+      rgba(52, 211, 153, 0.07),
       transparent 55%
     ),
     radial-gradient(
-      ellipse 70% 50% at 100% 50%,
-      rgba(99, 102, 241, 0.06),
+      ellipse 60% 40% at 100% 60%,
+      rgba(99, 102, 241, 0.04),
       transparent 50%
-    ),
-    radial-gradient(
-      ellipse 60% 40% at 0% 80%,
-      rgba(212, 165, 116, 0.05),
-      transparent 45%
     );
 }
 
@@ -267,9 +265,10 @@ body {
 .coach-panel-phone__script {
   margin: 0;
   max-width: 22rem;
-  font-size: clamp(1.05rem, 4.5vw, 1.25rem);
+  font-size: clamp(1.1rem, 4.8vw, 1.35rem);
   font-weight: 500;
-  line-height: 1.45;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
   color: var(--text);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -483,15 +482,15 @@ body {
 .glass {
   background: var(--card);
   border: 1px solid var(--border);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
 }
 
 .glass-subtle {
   background: var(--surface);
   border: 1px solid var(--border);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* Segmented control — native radio + label for reliable mobile taps */
@@ -880,6 +879,8 @@ body {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.12) inset,
     0 12px 36px var(--accent-glow);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: transform 0.15s;
 }
 
@@ -2057,14 +2058,16 @@ body {
   cursor: pointer;
 }
 
-/* Lead card — compact queue snippet */
+/* Lead card — contact-card feel */
 .lead-card {
   width: 100%;
   max-width: 100%;
   flex-shrink: 0;
-  border-radius: var(--radius-lg);
-  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-xl);
+  padding: 1rem 1.1rem;
   box-sizing: border-box;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .lead-card--empty {
@@ -2080,10 +2083,11 @@ body {
 
 .lead-card-phone {
   display: block;
-  margin-top: 0.45rem;
+  margin-top: 0.55rem;
   font-family: ui-monospace, monospace;
-  font-size: 1.05rem;
-  font-weight: 500;
+  font-size: 1.2rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--accent);
   touch-action: manipulation;
@@ -2119,17 +2123,18 @@ body {
 
 .outcome-btn {
   display: flex;
-  min-height: 3.1rem;
+  min-height: 3.5rem;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   border: 1px solid transparent;
-  padding: 0.4rem 0.25rem;
-  font-size: clamp(0.75rem, 3.2vw, 0.85rem);
+  padding: 0.5rem 0.25rem;
+  font-size: clamp(0.8rem, 3.5vw, 0.9rem);
   font-weight: 600;
   line-height: 1.15;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: transform 0.12s, background 0.15s;
 }
 
@@ -2163,4 +2168,58 @@ body {
   border-color: rgba(52, 211, 153, 0.35);
   background: rgba(6, 78, 59, 0.45);
   color: #a7f3d0;
+}
+
+/* Pre-call brief — opener + anticipated objections */
+.brief-card {
+  margin-bottom: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--gold) 22%, var(--border));
+  background: color-mix(in srgb, var(--gold) 5%, var(--card));
+}
+
+.brief-card__label {
+  margin: 0 0 0.35rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.brief-card__opener {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.brief-card__objections {
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid color-mix(in srgb, var(--gold) 18%, var(--border));
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.brief-card__objection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.brief-card__objection-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--gold) 85%, var(--text-secondary));
+}
+
+.brief-card__objection-line {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
 }

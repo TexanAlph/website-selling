@@ -75,15 +75,25 @@ export function LeadCard({
     <section className="lead-card glass">
       <div className="lead-card-row">
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-base font-semibold leading-tight">
+          <h2 className="truncate text-lg font-semibold leading-snug tracking-tight">
             {lead.business_name}
           </h2>
-          <p className="mt-0.5 truncate text-xs text-[var(--text-secondary)]">
-            {lead.niche ?? "Local service"}
-          </p>
+          <div className="mt-1 flex items-center gap-1.5">
+            {lead.niche ? (
+              <span className="text-xs text-[var(--text-secondary)]">
+                {lead.niche}
+              </span>
+            ) : null}
+            {!lead.website && (
+              <>
+                {lead.niche && <span className="text-[var(--text-tertiary)]">·</span>}
+                <span className="text-xs font-semibold text-[var(--gold)]">No website</span>
+              </>
+            )}
+          </div>
         </div>
         <span
-          className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase ${statusClass}`}
+          className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase ${statusClass}`}
         >
           {lead.status}
         </span>
@@ -109,9 +119,7 @@ export function LeadCard({
         >
           {websiteLabel}
         </a>
-      ) : (
-        <p className="lead-card-website lead-card-website--none">{websiteLabel}</p>
-      )}
+      ) : null}
     </section>
   );
 }

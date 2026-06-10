@@ -19,6 +19,11 @@ type CoachStack = {
   labels: { stt: string; liveLlm: string; batchLlm: string };
 };
 
+type CoachHint = { label: string; line: string };
+
+/** Server window for full-call memory (objections seen, opening) — not the LLM prompt size. */
+const TRANSCRIPT_SEND_CHARS = 4000;
+
 const SPEECH_PAUSE_MS = 550;
 const SPEECH_PAUSE_OBJECTION_MS = 320;
 const COACH_MIN_GAP_MS = 500;
@@ -38,6 +43,7 @@ export function useCoachListening(
   const [streaming, setStreaming] = useState(false);
   const [coachError, setCoachError] = useState<string | null>(null);
   const [labeledLines, setLabeledLines] = useState<LabeledLine[]>([]);
+  const [nextHints, setNextHints] = useState<CoachHint[]>([]);
 
   const lastCoachAt = useRef(0);
   const bootstrapDoneAt = useRef(0);
@@ -111,6 +117,7 @@ export function useCoachListening(
       setStreaming(false);
       setCoachError(null);
       setLabeledLines([]);
+      setNextHints([]);
       warmedRef.current = false;
       lastFingerprint.current = "";
       lastMediaSig.current = "";
@@ -167,7 +174,7 @@ export function useCoachListening(
           body: JSON.stringify({
             sessionId,
             leadId,
-            transcript: transcript.slice(-900),
+            transcript: transcript.slice(-TRANSCRIPT_SEND_CHARS),
             prospectOnly: opts?.prospectOnly?.slice(-500),
             bootstrap: opts?.bootstrap,
           }),
@@ -205,6 +212,7 @@ export function useCoachListening(
                 text?: string;
                 content?: string;
                 message?: string;
+                hints?: CoachHint[];
               };
               if (event.type === "error" && event.message) {
                 setCoachError(event.message);
@@ -215,6 +223,7 @@ export function useCoachListening(
               if (event.type === "done" && event.content) {
                 const match = event.content.match(/^\[[^\]]+\]\s*([\s\S]*)$/);
                 setSayNow(match?.[1]?.trim() ?? event.content);
+                setNextHints(Array.isArray(event.hints) ? event.hints : []);
               }
             } catch {
               /* ignore parse errors */
@@ -310,6 +319,9 @@ export function useCoachListening(
                 const text = match?.[1]?.trim() ?? event.content;
                 setSayNow(text);
                 lastFingerprint.current = coachTranscriptFingerprint(text);
+              }
+              if (event.type === "done" && Array.isArray((event as { hints?: CoachHint[] }).hints)) {
+                setNextHints((event as { hints?: CoachHint[] }).hints ?? []);
               }
             } catch {
               /* ignore */
@@ -492,6 +504,7 @@ export function useCoachListening(
     sayNow,
     streaming,
     coachError,
+    nextHints,
   };
 }
 
