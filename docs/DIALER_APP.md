@@ -36,6 +36,13 @@ Restart **`storage/api_server.py`** on the Mac Mini after pulling repo changes t
 
 Live coach uses a **compact SOP prompt** (same compliance and stage rules, fewer tokens). It re-fires when **new prospect speech** arrives (Safari speech, or **Media Streams** prospect leg when `MEDIA_STREAM_WSS_URL` is set). The model is told to **respond to what they said**, not repeat the opening.
 
+**Elite coach context (no extra cost — all deterministic):**
+
+- **Call memory** (`call-memory.ts`) — the client sends up to 4 000 chars of transcript; the server rebuilds per-turn memory from it: objections already raised, the coach's last 3 lines (model is told never to repeat them), and the opening snippet on long calls.
+- **Objection library** (`objection-library.ts`) — 17 curated objection→counter pairs (price, "have a guy", send-email, scam, think-about-it, do-not-call, …). When the prospect's speech matches one, the proven counter is injected into the prompt; the learned playbook layers niche wins on top.
+- **Rep-echo filter** (`rep-echo.ts`) — with mixed Safari speech, sentences that heavily overlap a recent coach line are treated as the **rep** talking and excluded from objection matching, so the coach no longer mistakes your own pitch for a prospect objection. Media Streams legs are already speaker-labeled and skip this.
+- **"If they say…" hints** — after each Say-now line, the panel shows the 1–2 most likely next objections for the current stage with library counters, computed without any LLM call, so the answer is on screen *before* the objection lands.
+
 **STT note:** `DEEPGRAM_API_KEY` on Vercel alone does **not** switch the phone to browser Deepgram (that fought Twilio for the mic). Use **Media Streams** on the Mac Mini for labeled prospect/rep lines, or Safari speech (mixed audio).
 
 **Not on Mac Mini:** Keep `OPENROUTER_API_KEY` (live coach + fallback) and `GEMINI_API_KEY` (recaps) on Vercel.

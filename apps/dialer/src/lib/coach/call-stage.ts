@@ -26,8 +26,8 @@ const SIGNALS: StageSignals[] = [
   {
     stage: "wrap",
     patterns: [
-      /\b(goodbye|bye|talk later|call you back|gotta go|not a good time)\b/i,
-      /\b(send (it )?to my email|text me (the )?info)\b/i,
+      /\b(goodbye|bye|talk later|gotta go)\b/i,
+      /\b(have a good (one|day)|take care)\b/i,
     ],
   },
   {
@@ -43,6 +43,10 @@ const SIGNALS: StageSignals[] = [
       /\b(too expensive|no budget|not interested|already have|have a (guy|website|web designer))\b/i,
       /\b(send (me )?info|email me|not the decision|call back|busy|who is this|scam)\b/i,
       /\b(don't need|don't want|no thanks|not looking)\b/i,
+      /\b(think about it|sleep on it|word of mouth|booked (up|out|solid))\b/i,
+      /\b(ask|talk to|check with) (my|the) (wife|husband|spouse|partner|boss)\b/i,
+      /\b(waste of money|do it (myself|ourselves)|wix|squarespace|godaddy)\b/i,
+      /\b(send (it )?to my email|text me (the )?info)\b/i,
     ],
   },
   {

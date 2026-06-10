@@ -2,7 +2,6 @@ import { getCoachStackConfig, requireLiveLlm } from "./config";
 import { liveLlmTextStream, warmCoachLlm } from "./batch-llm";
 import { formatPlaybookContext, getPlaybookForNiche } from "./playbook";
 import { fetchLeadContext } from "@/lib/calls/sessions";
-import { normalizeNiche } from "@/lib/calls/niche";
 import type { CallStage } from "./call-stage";
 import { parseCounterDisplay } from "./coach-display";
 import {
@@ -11,7 +10,14 @@ import {
   type BuiltCoachContext,
 } from "./sales-sop";
 import { getSalesConfig } from "./sales-config";
-import { hasObjectionCue } from "./objection-cues";
+import {
+  anticipateObjections,
+  hasObjectionCue,
+  matchObjections,
+  type ObjectionVars,
+} from "./objection-library";
+import { buildCallMemory, formatMemoryContext } from "./call-memory";
+import { filterRepEcho } from "./rep-echo";
 import {
   getSessionCoachCache,
   setSessionCoachCache,
@@ -27,6 +33,27 @@ export type CoachStreamInput = {
   bootstrap?: boolean;
 };
 
+export type CoachHint = { label: string; line: string };
+
+const STAGES: CallStage[] = [
+  "opening",
+  "gatekeeper",
+  "discovery",
+  "pitch",
+  "objection",
+  "closing",
+  "wrap",
+];
+
+function objectionVars(): ObjectionVars {
+  const cfg = getSalesConfig();
+  return {
+    price: cfg.offerPrice,
+    companyName: cfg.companyName,
+    deliveryTimeline: cfg.deliveryTimeline,
+  };
+}
+
 async function loadCoachContext(
   sessionId: string,
   leadId: string | null | undefined,
@@ -36,10 +63,10 @@ async function loadCoachContext(
   ctx: BuiltCoachContext;
   stack: ReturnType<typeof getCoachStackConfig>;
   objectionMode: boolean;
+  seenObjectionIds: string[];
 }> {
   const stack = getCoachStackConfig();
   const trimmed = transcript.trim();
-  const objectionMode = hasObjectionCue(trimmed);
 
   const cached = getSessionCoachCache(sessionId);
   let niche: string | null = null;
@@ -69,23 +96,40 @@ async function loadCoachContext(
     hasWebsite = cached.hasWebsite;
   }
 
-  const priorContent = await storage.getLatestCounterContent(sessionId);
+  // One fetch gives both the previous stage and the coach's recent lines —
+  // recent lines power call memory and the rep-echo filter below.
+  const counters = await storage
+    .listCoachCountersSince(sessionId)
+    .catch(() => []);
+  const counterTexts = counters
+    .filter((m) => m.role === "counter")
+    .map((m) => parseCounterDisplay(m.content).text);
   let previousStage: CallStage | undefined;
-  if (priorContent) {
-    const { stage } = parseCounterDisplay(priorContent);
-    const stages: CallStage[] = [
-      "opening",
-      "gatekeeper",
-      "discovery",
-      "pitch",
-      "objection",
-      "closing",
-      "wrap",
-    ];
-    if (stage && stages.includes(stage as CallStage)) {
+  const lastCounter = counters.filter((m) => m.role === "counter").at(-1);
+  if (lastCounter) {
+    const { stage } = parseCounterDisplay(lastCounter.content);
+    if (stage && STAGES.includes(stage as CallStage)) {
       previousStage = stage as CallStage;
     }
   }
+
+  const memory = buildCallMemory(trimmed, counterTexts);
+
+  // Who's-who guard: with mixed Safari speech, drop sentences that echo the
+  // coach's own recent lines (the rep talking) before objection matching.
+  // Media Streams prospect legs are already speaker-separated.
+  const objectionSource = prospectOnly?.trim()
+    ? prospectOnly
+    : filterRepEcho(trimmed.slice(-450), memory.recentCoachLines);
+  const objectionMode = hasObjectionCue(objectionSource);
+
+  const vars = objectionVars();
+  const matched = matchObjections(objectionSource);
+  const matchedObjectionContext = matched
+    .map((d) => `- They said "${d.label}" → ${d.counter(vars)}`)
+    .join("\n");
+
+  const memoryContext = formatMemoryContext(memory);
 
   const ctx = buildLiveCoachContext({
     transcript: trimmed,
@@ -94,6 +138,8 @@ async function loadCoachContext(
     businessName,
     hasWebsite,
     playbookContext,
+    memoryContext,
+    matchedObjectionContext,
     previousStage: objectionMode ? "objection" : previousStage,
   });
 
@@ -101,6 +147,9 @@ async function loadCoachContext(
     ctx.stage = "objection";
     ctx.systemPrompt = [
       buildLiveCoachSystemPrompt("objection"),
+      matchedObjectionContext
+        ? `PROVEN COUNTERS for what they just said — adapt naturally, don't read robotically:\n${matchedObjectionContext}`
+        : "",
       playbookContext?.trim()
         ? `Playbook:\n${playbookContext.trim().slice(0, 400)}`
         : "",
@@ -109,20 +158,29 @@ async function loadCoachContext(
       .join("\n\n");
     ctx.userPrompt = [
       "Objection — next line only.",
+      memoryContext,
       prospectOnly
         ? `Prospect: ${prospectOnly.slice(-400)}`
         : trimmed.slice(-500),
-    ].join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
   }
 
-  return { ctx, stack, objectionMode };
+  return { ctx, stack, objectionMode, seenObjectionIds: memory.objectionIds };
 }
 
 export async function* streamCoachPipeline(
   input: CoachStreamInput,
 ): AsyncGenerator<
   | { type: "token"; text: string }
-  | { type: "done"; content: string; stage: string; stageLabel: string }
+  | {
+      type: "done";
+      content: string;
+      stage: string;
+      stageLabel: string;
+      hints: CoachHint[];
+    }
 > {
   const trimmed = input.transcript.trim();
   const bootstrap = Boolean(input.bootstrap);
@@ -137,7 +195,7 @@ export async function* streamCoachPipeline(
     (bootstrap
       ? "[Call connected — prospect has not spoken. Opening only: we help [niche] in [area] build websites for one-time price — do NOT say company name yet; end with permission question.]"
       : "");
-  const { ctx } = await loadCoachContext(
+  const { ctx, seenObjectionIds } = await loadCoachContext(
     sessionId,
     leadId,
     transcript,
@@ -180,6 +238,7 @@ export async function* streamCoachPipeline(
     content: counterContent,
     stage: ctx.stage,
     stageLabel: ctx.stageLabel,
+    hints: anticipateObjections(ctx.stage, seenObjectionIds, objectionVars()),
   };
 }
 
